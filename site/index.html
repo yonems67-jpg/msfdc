@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI量化交易决策终端</title>
+<link rel="stylesheet" href="./style.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+</head>
+<body>
+
+<header>
+  <h1>AI量化交易决策终端 <span id="updated-time" class="updated"></span></h1>
+  <nav>
+    <a href="./index.html" class="active">市场总览</a>
+    <a href="./positions.html">持仓管理</a>
+  </nav>
+</header>
+
+<main>
+
+  <section class="panel">
+    <h2>市场雷达（择时评分）</h2>
+    <div class="score-big" id="market-score">--</div>
+    <div class="mode-tag" id="market-mode">--</div>
+    <canvas id="radar-chart" height="200"></canvas>
+  </section>
+
+  <section class="panel">
+    <h2>板块热力排行 TOP5</h2>
+    <table id="sector-table">
+      <thead><tr><th>板块</th><th>得分</th><th>龙头强度</th><th>持续性</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section class="panel">
+    <h2>多因子选股池</h2>
+    <table id="stock-pool-table">
+      <thead><tr><th>代码</th><th>所属板块</th><th>综合得分</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section class="panel">
+    <h2>买入信号提醒</h2>
+    <div id="signals-list"></div>
+  </section>
+
+  <section class="panel full-width">
+    <h2>持仓监控（持有 / 加仓 / 减仓 / 清仓）</h2>
+    <table id="monitor-table">
+      <thead><tr><th>代码</th><th>成本价</th><th>最新价</th><th>浮盈亏</th><th>操作提示</th><th>原因</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section class="panel full-width">
+    <h2>风险预警</h2>
+    <div id="risk-alerts"></div>
+  </section>
+
+  <section class="panel full-width">
+    <h2>策略回测（净值曲线）</h2>
+    <canvas id="equity-chart" height="80"></canvas>
+    <div id="backtest-metrics" style="margin-top:12px;font-size:13px;color:var(--muted);"></div>
+  </section>
+
+</main>
+
+<script src="./app.js"></script>
+<script>
+async function render() {
+  const [marketScore, sectors, stockPool, signals, monitor, risk, lastRun, backtest] = await Promise.all([
+    fetchJson("market_score.json"),
+    fetchJson("sector_rank.json", []),
+    fetchJson("stock_pool.json", []),
+    fetchJson("signals.json", []),
+    fetchJson("monitor.json", []),
+    fetchJson("risk_status.json"),
+    fetchJson("last_run.json"),
+    fetchJson("backtest_stats.json"),
+  ]);
+
+  if (lastRun) setUpdatedTime(lastRun.run_at);
+
+  // 市场评分
+  if (marketScore) {
+    document.getElementById("market-score").textContent = marketScore.total_score;
+    const modeEl = document.getElementById("market-mode");
+    modeEl.textContent = marketScore.mode;
+    modeEl.className = "mode-tag " + modeClass(marketScore.mode);
+
+    const breakdown = marketScore.breakdown || {};
+    const labels = Object.keys(breakdown);
+    const values = labels.map(k => breakdown[k].score);
+    new Chart(document.getElementById("radar-chart"), {
+      type: "radar",
+      data: { labels, datasets: [{ label: "得分", data: values, backgroundColor: "rgba(79,140,255,.2)", borderColor: "#4f8cff" }] },
+      options: { scales: { r: { grid: { color: "#262c35" }, angleLines: { color: "#262c35" }, pointLabels: { color: "#8b93a1" }, ticks: { display: false } } }, plugins: { legend: { display: false } } }
+    });
+  }
+
+  // 板块排行
+  const sectorBody = document.querySelector("#sector-table tbody");
+  sectorBody.innerHTML = sectors.length ? sectors.map(s =>
+    `<tr><td>${s.sector}</td><td>${s.score}</td><td>${s.leader_strength}</td><td>${s.persistence}</td></tr>`
+  ).join("") : `<tr><td colspan="4" class="empty">暂无数据</td></tr>`;
+
+  // 选股池
+  const poolBody = document.querySelector("#stock-pool-table tbody");
+  poolBody.innerHTML = stockPool.length ? stockPool.map(s =>
+    `<tr><td>${s.code}</td><td>${s.sector || "-"}</td><td>${s.score}</td></tr>`
+  ).join("") : `<tr><td colspan="3" class="empty">暂无数据（可能是防守模式或今日未达标）</td></tr>`;
+
+  // 买入信号
+  const signalsList = document.getElementById("signals-list");
+  signalsList.innerHTML = signals.length
+    ? signals.map(s => `<div class="alert-item"><span class="badge badge-buy">买入</span> ${s.code}（${s.sector || "-"}）— ${(s.matched_patterns || []).join("、")}</div>`).join("")
+    : `<div class="empty">今日暂无买入信号</div>`;
+
+  // 持仓监控
+  const monitorBody = document.querySelector("#monitor-table tbody");
+  monitorBody.innerHTML = monitor.length ? monitor.map(m => `
+    <tr>
+      <td>${m.code}</td>
+      <td>${m.cost_price ?? "-"}</td>
+      <td>${m.last_price ?? "-"}</td>
+      <td>${m.pnl_ratio != null ? (m.pnl_ratio * 100).toFixed(2) + "%" : "-"}</td>
+      <td><span class="badge ${actionBadgeClass(m.action)}">${m.action}</span></td>
+      <td>${(m.reasons || []).join("；")}</td>
+    </tr>`).join("") : `<tr><td colspan="6" class="empty">当前无持仓</td></tr>`;
+
+  // 风险预警
+  const riskEl = document.getElementById("risk-alerts");
+  if (risk) {
+    const items = [];
+    if (risk.halt_new_positions) items.push("⚠️ 今日已触发风控，暂停新开仓");
+    (risk.stock_hard_stoploss_alerts || []).forEach(a => items.push(`⚠️ ${a.code} 触发单只硬止损（占总资金 ${(a.loss_ratio_of_total_capital*100).toFixed(2)}%），禁止加仓`));
+    if (risk.weekly_drawdown_check && risk.weekly_drawdown_check.triggered) items.push(`⚠️ 单周回撤 ${(risk.weekly_drawdown_check.drawdown*100).toFixed(2)}%，次周仓位上限降至 ${(risk.position_cap_override*100).toFixed(0)}%`);
+    riskEl.innerHTML = items.length ? items.map(i => `<div class="alert-item">${i}</div>`).join("") : `<div class="empty">当前无风险预警</div>`;
+  } else {
+    riskEl.innerHTML = `<div class="empty">暂无数据</div>`;
+  }
+
+  // 回测
+  if (backtest && backtest.equity_curve) {
+    new Chart(document.getElementById("equity-chart"), {
+      type: "line",
+      data: {
+        labels: backtest.equity_curve.map(p => p.close_date),
+        datasets: [{ label: "账户净值", data: backtest.equity_curve.map(p => p.equity), borderColor: "#4f8cff", tension: 0.2, pointRadius: 0 }]
+      },
+      options: { scales: { x: { ticks: { color: "#8b93a1" } }, y: { ticks: { color: "#8b93a1" } } }, plugins: { legend: { display: false } } }
+    });
+    document.getElementById("backtest-metrics").textContent =
+      `年化收益率 ${(backtest.annualized_return*100).toFixed(1)}% ｜ 最大回撤 ${(backtest.max_drawdown*100).toFixed(1)}% ｜ 胜率 ${(backtest.win_rate*100).toFixed(1)}% ｜ 盈亏比 ${backtest.profit_loss_ratio ?? "-"} ｜ 夏普 ${backtest.sharpe_ratio} ｜ 最大连亏 ${backtest.max_consecutive_losses}次`;
+  }
+}
+
+render();
+</script>
+</body>
+</html>

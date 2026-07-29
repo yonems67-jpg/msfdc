@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>持仓管理 - AI量化交易决策终端</title>
+<link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+<header>
+  <h1>持仓管理</h1>
+  <nav>
+    <a href="./index.html">市场总览</a>
+    <a href="./positions.html" class="active">持仓管理</a>
+  </nav>
+</header>
+
+<main>
+  <section class="panel">
+    <h2>新增持仓</h2>
+    <form id="add-form">
+      <label>股票代码
+        <input type="text" id="f-code" placeholder="例如 600519" required />
+      </label>
+      <label>买入成本价
+        <input type="number" id="f-cost" step="0.001" required />
+      </label>
+      <label>持仓数量（股）
+        <input type="number" id="f-qty" step="1" required />
+      </label>
+      <label>所属板块（可选，需与板块热力榜名称一致）
+        <input type="text" id="f-sector" />
+      </label>
+      <button type="submit">保存到 GitHub</button>
+    </form>
+    <div id="form-msg" style="margin-top:10px;font-size:13px;"></div>
+  </section>
+
+  <section class="panel full-width">
+    <h2>当前持仓</h2>
+    <table id="positions-table">
+      <thead><tr><th>代码</th><th>成本价</th><th>数量</th><th>板块</th><th>操作</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+</main>
+
+<script>
+// ⚠️ 部署后请把下面这个地址换成你在阿里云 FC 里给 position_api 绑定的 HTTP 触发器公网地址。
+const API_BASE_URL = "https://REPLACE-ME.cn-hangzhou.fc.aliyuncs.com/2016-08-15/proxy/your-service/your-function";
+// ⚠️ 这里要和阿里云函数环境变量 API_SECRET 保持一致（自己起一个不容易猜的字符串）。
+const API_SECRET = "REPLACE-ME-WITH-YOUR-OWN-SECRET";
+
+async function apiCall(path, method = "GET", body = null) {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method,
+    headers: { "Content-Type": "application/json", "X-Api-Secret": API_SECRET },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return res.json();
+}
+
+async function loadPositions() {
+  const data = await apiCall("/positions");
+  const tbody = document.querySelector("#positions-table tbody");
+  const positions = data.positions || [];
+  tbody.innerHTML = positions.length ? positions.map(p => `
+    <tr>
+      <td>${p.code}</td><td>${p.cost_price}</td><td>${p.quantity}</td><td>${p.sector || "-"}</td>
+      <td><button class="danger" data-code="${p.code}" onclick="removePosition('${p.code}')">删除</button></td>
+    </tr>`).join("") : `<tr><td colspan="5" class="empty">暂无持仓</td></tr>`;
+}
+
+async function removePosition(code) {
+  if (!confirm(`确认删除持仓 ${code}？`)) return;
+  await apiCall(`/positions/${code}`, "DELETE");
+  loadPositions();
+}
+
+document.getElementById("add-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const msg = document.getElementById("form-msg");
+  msg.textContent = "保存中...";
+  try {
+    const result = await apiCall("/positions", "POST", {
+      code: document.getElementById("f-code").value.trim(),
+      cost_price: parseFloat(document.getElementById("f-cost").value),
+      quantity: parseInt(document.getElementById("f-qty").value, 10),
+      sector: document.getElementById("f-sector").value.trim() || null,
+      opened_at: new Date().toISOString().slice(0, 10),
+    });
+    msg.textContent = result.ok ? "已保存" : `保存失败: ${result.error || "未知错误"}`;
+    if (result.ok) {
+      document.getElementById("add-form").reset();
+      loadPositions();
+    }
+  } catch (err) {
+    msg.textContent = `请求失败: ${err}`;
+  }
+});
+
+loadPositions();
+</script>
+</body>
+</html>
