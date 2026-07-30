@@ -26,7 +26,7 @@
     "cost_price": 4.75,
     "quantity": 100,
     "last_price": null,
-    "pnl_ratio": -0.0126,
+    "pnl_ratio": 0.0147,
     "action": "清仓",
     "reasons": [
       "市场择时评分 39.5 跌破 40，全部持仓强制清仓"
