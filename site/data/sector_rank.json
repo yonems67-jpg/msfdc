@@ -16,11 +16,11 @@
   },
   {
     "sector": "汽车整车",
-    "score": 79.92,
+    "score": 79.02,
     "detail": {
       "资金净流入": 28.33,
       "近5日涨幅": 12.5,
-      "板块涨跌家数比": 19.09,
+      "板块涨跌家数比": 18.18,
       "龙头强度": 15.0,
       "持续性": 5.0
     },
@@ -31,36 +31,21 @@
   },
   {
     "sector": "银行",
-    "score": 73.96,
+    "score": 74.11,
     "detail": {
       "资金净流入": 29.67,
       "近5日涨幅": 12.5,
       "板块涨跌家数比": 20.0,
-      "龙头强度": 6.79,
+      "龙头强度": 6.94,
       "持续性": 5.0
     },
-    "leader_strength": 0.453,
+    "leader_strength": 0.463,
     "persistence": 0.5,
     "leader_name": "浦发银行",
     "leader_code": "sh600000"
   },
   {
-    "sector": "农化制品",
-    "score": 70.83,
-    "detail": {
-      "资金净流入": 24.67,
-      "近5日涨幅": 12.5,
-      "板块涨跌家数比": 13.67,
-      "龙头强度": 15.0,
-      "持续性": 5.0
-    },
-    "leader_strength": 1.0,
-    "persistence": 0.5,
-    "leader_name": "美邦股份",
-    "leader_code": "sh605033"
-  },
-  {
-    "sector": "油气开采及服务",
+    "sector": "厨卫电器",
     "score": 69.39,
     "detail": {
       "资金净流入": 21.33,
@@ -71,7 +56,22 @@
     },
     "leader_strength": 1.0,
     "persistence": 0.5,
-    "leader_name": "科力股份",
-    "leader_code": "bj920088"
+    "leader_name": "火星人",
+    "leader_code": "sz300894"
+  },
+  {
+    "sector": "农化制品",
+    "score": 69.28,
+    "detail": {
+      "资金净流入": 23.33,
+      "近5日涨幅": 12.5,
+      "板块涨跌家数比": 13.45,
+      "龙头强度": 15.0,
+      "持续性": 5.0
+    },
+    "leader_strength": 1.0,
+    "persistence": 0.5,
+    "leader_name": "美邦股份",
+    "leader_code": "sh605033"
   }
 ]
