@@ -5,6 +5,8 @@
     "quantity": 200,
     "last_price": null,
     "pnl_ratio": -0.2354,
+    "day_change": null,
+    "active_net_ratio": null,
     "action": "清仓",
     "reasons": [
       "市场择时评分 39.5 跌破 40，全部持仓强制清仓"
@@ -16,6 +18,8 @@
     "quantity": 300,
     "last_price": null,
     "pnl_ratio": -0.1027,
+    "day_change": null,
+    "active_net_ratio": null,
     "action": "清仓",
     "reasons": [
       "市场择时评分 39.5 跌破 40，全部持仓强制清仓"
@@ -27,6 +31,8 @@
     "quantity": 100,
     "last_price": null,
     "pnl_ratio": 0.0147,
+    "day_change": null,
+    "active_net_ratio": null,
     "action": "清仓",
     "reasons": [
       "市场择时评分 39.5 跌破 40，全部持仓强制清仓"
