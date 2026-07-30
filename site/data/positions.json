@@ -12,5 +12,12 @@
     "quantity": 300,
     "sector": null,
     "opened_at": "2026-07-30"
+  },
+  {
+    "code": "603879",
+    "cost_price": 4.75,
+    "quantity": 100,
+    "sector": null,
+    "opened_at": "2026-07-30"
   }
 ]
