@@ -5,5 +5,12 @@
     "quantity": 200,
     "sector": null,
     "opened_at": "2026-07-30"
+  },
+  {
+    "code": "588710",
+    "cost_price": 3.095,
+    "quantity": 300,
+    "sector": null,
+    "opened_at": "2026-07-30"
   }
 ]
