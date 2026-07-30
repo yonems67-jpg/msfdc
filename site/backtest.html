@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light dark" />
+<title>策略回测 · Trading Decision Terminal</title>
+<link rel="stylesheet" href="./terminal.css" />
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <h1 class="wordmark">Trading Decision Terminal
+      <span class="wordmark-sub">交易决策终端</span>
+    </h1>
+    <div class="stamp" id="stamp">读取中…</div>
+  </div>
+  <nav class="tabs" id="tabs" aria-label="页面导航"></nav>
+</header>
+
+<div class="diag" id="diag" hidden></div>
+
+<main>
+  <div class="page-head">
+    <h2 class="page-title">策略回测</h2>
+    <p class="page-note">每笔交易的完整记录会自动留存，指标由已平仓交易计算得出，用于校正因子权重与阈值。</p>
+  </div>
+  <section class="section">
+    <div class="grid cols-4" id="metrics"></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <h3 class="section-title">账户净值</h3>
+      <span class="section-meta" id="curve-meta"></span>
+    </div>
+    <div class="card"><div id="curve"></div></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <h3 class="section-title">单周收益分布</h3>
+    </div>
+    <div class="card" id="weekly"></div>
+  </section>
+</main>
+
+<footer class="foot">个人自用工具，非投资建议。所有信号由量化规则生成，执行前请自行复核。</footer>
+
+<script src="./terminal.js"></script>
+<script>
+(async function () {
+  buildChrome("backtest.html");
+  stampLastRun();
+
+  const bt = await loadJson("backtest_stats.json");
+
+  if (!bt || bt.error) {
+    document.getElementById("metrics").innerHTML =
+      emptyState("尚无回测结果", "需要先积累已平仓的交易记录，指标才能计算");
+    document.getElementById("curve").innerHTML =
+      emptyState("暂无净值曲线", "首笔平仓后自动开始绘制");
+    document.getElementById("weekly").innerHTML = "";
+    return;
+  }
+
+  panel("指标", () => {
+    const cards = [
+      { label: "年化收益率", value: fmt.pct(bt.annualized_return, 1), cls: fmt.dirClass(bt.annualized_return) },
+      { label: "最大回撤", value: fmt.pct(bt.max_drawdown, 1), cls: "down" },
+      { label: "胜率", value: fmt.pct(bt.win_rate, 1) },
+      { label: "盈亏比", value: bt.profit_loss_ratio == null ? "—" : fmt.num(bt.profit_loss_ratio, 2) },
+      { label: "夏普比率", value: fmt.num(bt.sharpe_ratio, 2) },
+      { label: "最大连续亏损", value: (bt.max_consecutive_losses ?? "—") + " 笔" },
+      { label: "总交易笔数", value: bt.total_trades ?? "—" },
+    ];
+    document.getElementById("metrics").innerHTML = cards.map(c => `<div class="metric">
+      <div class="metric-label">${esc(c.label)}</div>
+      <div class="metric-value ${c.cls || ""}">${esc(c.value)}</div>
+    </div>`).join("");
+  });
+
+  panel("净值曲线", () => {
+    const curve = (bt.equity_curve || []).map(p => ({ x: p.close_date, y: p.equity }));
+    renderCurve(document.getElementById("curve"), curve, {
+      label: "账户净值曲线",
+      yFormat: v => (v >= 10000 ? (v / 10000).toFixed(1) + "万" : v.toFixed(0)),
+    });
+    const meta = document.getElementById("curve-meta");
+    if (curve.length) meta.textContent = `${curve[0].x} 至 ${curve[curve.length - 1].x}`;
+  });
+
+  panel("周收益分布", () => {
+    const el = document.getElementById("weekly");
+    const dist = bt.weekly_pnl_distribution || {};
+    const weeks = Object.keys(dist).sort();
+    if (!weeks.length) { el.innerHTML = emptyState("暂无周度数据", ""); return; }
+    const peak = Math.max(...weeks.map(w => Math.abs(dist[w]))) || 1;
+    el.innerHTML = weeks.map(w => {
+      const v = dist[w];
+      const cls = fmt.dirClass(v);
+      return `<div class="bar-row">
+        <span class="bar-name" style="font-family:var(--font-mono);font-size:12px">${esc(w)}</span>
+        <div class="bar-track"><div class="bar-fill ${cls}" style="width:${((Math.abs(v) / peak) * 100).toFixed(1)}%;background:var(--${v >= 0 ? "up" : "down"})"></div></div>
+        <span class="bar-meta ${cls}">${v >= 0 ? "+" : "−"}${fmt.num(Math.abs(v), 0)}</span>
+      </div>`;
+    }).join("");
+  });
+})();
+</script>
+</body>
+</html>

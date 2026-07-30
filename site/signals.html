@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light dark" />
+<title>信号与风险 · Trading Decision Terminal</title>
+<link rel="stylesheet" href="./terminal.css" />
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <h1 class="wordmark">Trading Decision Terminal
+      <span class="wordmark-sub">交易决策终端</span>
+    </h1>
+    <div class="stamp" id="stamp">读取中…</div>
+  </div>
+  <nav class="tabs" id="tabs" aria-label="页面导航"></nav>
+</header>
+
+<div class="diag" id="diag" hidden></div>
+
+<main>
+  <div class="page-head">
+    <h2 class="page-title">信号与风险</h2>
+    <p class="page-note">三重门槛全部满足才生成买入信号：市场评分 ≥ 70、个股评分 ≥ 85、且出现标准进场形态。</p>
+  </div>
+  <section class="section">
+    <div class="section-head">
+      <h3 class="section-title">买入信号</h3>
+      <span class="section-meta">突破 / 回踩低吸 / 龙头反包</span>
+    </div>
+    <div id="signals"></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <h3 class="section-title">风险预警</h3>
+      <span class="section-meta">硬性规则触发即不可突破</span>
+    </div>
+    <div id="risks"></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <h3 class="section-title">不可突破的纪律</h3>
+    </div>
+    <div class="card" id="rules"></div>
+  </section>
+</main>
+
+<footer class="foot">个人自用工具，非投资建议。所有信号由量化规则生成，执行前请自行复核。</footer>
+
+<script src="./terminal.js"></script>
+<script>
+(async function () {
+  buildChrome("signals.html");
+  stampLastRun();
+
+  const [signals, risk] = await Promise.all([
+    loadJson("signals.json", []),
+    loadJson("risk_status.json"),
+  ]);
+
+  panel("买入信号", () => {
+    const el = document.getElementById("signals");
+    if (!signals || !signals.length) {
+      el.innerHTML = emptyState("今日无买入信号",
+        "三重门槛未同时满足。无安全机会时空仓等待，属策略的正常状态");
+      return;
+    }
+    el.innerHTML = signals.map(s => `<div class="signal">
+      <div class="signal-head">
+        <span class="signal-code">${esc(fmt.code(s.code))}</span>
+        <span class="chip">${esc(s.sector || "—")}</span>
+        <span class="signal-score">个股评分 ${fmt.num(s.stock_score, 1)}</span>
+      </div>
+      <div>${(s.matched_patterns || []).map(p => `<span class="chip">${esc(p)}</span>`).join("") || "—"}</div>
+    </div>`).join("");
+  });
+
+  panel("风险预警", () => {
+    const el = document.getElementById("risks");
+    if (!risk) {
+      el.innerHTML = emptyState("暂无风控数据", "定时任务运行后自动填充");
+      return;
+    }
+    const items = [];
+    if (risk.halt_new_positions) {
+      items.push({ critical: true, text: "当日回撤已触及上限，今日停止所有新开仓操作。" });
+    }
+    (risk.stock_hard_stoploss_alerts || []).forEach(a => {
+      items.push({ critical: true,
+        text: `${fmt.code(a.code)} 亏损已达账户总资金的 ${fmt.pct(a.loss_ratio_of_total_capital)}，触发单笔硬止损：禁止加仓，择机离场。` });
+    });
+    const wk = risk.weekly_drawdown_check;
+    if (wk && wk.triggered) {
+      items.push({ critical: false,
+        text: `本周累计回撤 ${fmt.pct(wk.drawdown)}，超过 6% 上限，次周总仓位需压降至 ${fmt.pct(risk.position_cap_override, 0)} 以内。` });
+    }
+    const dd = risk.daily_drawdown_check;
+    if (dd && !dd.triggered && dd.drawdown > 0) {
+      items.push({ critical: false, text: `当日回撤 ${fmt.pct(dd.drawdown)}，未触及 4% 停手线。` });
+    }
+
+    el.innerHTML = items.length
+      ? items.map(i => `<div class="alert${i.critical ? " is-critical" : ""}">
+          <div class="alert-mark"></div><div>${esc(i.text)}</div></div>`).join("")
+      : emptyState("当前无风险预警", "账户回撤、单票止损均在阈值以内");
+  });
+
+  panel("纪律清单", () => {
+    const fallback = [
+      "禁止对亏损持仓摊薄成本",
+      "禁止在防守模式下强行交易",
+      "禁止在高位抱团股上重仓博弈",
+    ];
+    const list = (risk && risk.forbidden_behavior_reminders) || fallback;
+    document.getElementById("rules").innerHTML =
+      list.map(r => `<div class="alert"><div class="alert-mark" style="background:var(--ink-faint)"></div><div>${esc(r)}</div></div>`).join("");
+  });
+})();
+</script>
+</body>
+</html>

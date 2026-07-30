@@ -1,0 +1,666 @@
+/* ============================================================
+   Trading Decision Terminal — 样式表
+   设计要点：
+   - 跟随系统深浅色（prefers-color-scheme），不需要手动切换
+   - 无任何外部字体/CDN依赖，全部系统字体栈
+   - A股约定：涨=红，跌=绿（与欧美市场相反）
+   - 数字统一等宽（tabular-nums），保证表格里位数对齐
+   ============================================================ */
+
+:root {
+  /* 排版：标题衬线（近似 Claude 的 Copernicus），正文无衬线，数据等宽 */
+  --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua",
+                  Georgia, "Songti SC", "SimSun", serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+               "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+
+  /* 间距与圆角 */
+  --gap: 20px;
+  --radius: 10px;
+  --rule: 1px;
+
+  /* 浅色（默认） */
+  --paper: #faf9f6;
+  --panel: #ffffff;
+  --panel-sunk: #f4f2ed;
+  --ink: #1b1a17;
+  --ink-soft: #55524b;
+  --ink-faint: #8a867d;
+  --line: #e2ded4;
+  --line-strong: #cdc7ba;
+
+  --accent: #3c607c;          /* 石板蓝，用于界面强调，不用于涨跌 */
+  --accent-soft: rgba(60, 96, 124, 0.10);
+
+  --up: #c4403a;              /* 涨 = 红（A股约定） */
+  --down: #17845f;            /* 跌 = 绿 */
+  --warn: #a8710f;
+  --up-soft: rgba(196, 64, 58, 0.10);
+  --down-soft: rgba(23, 132, 95, 0.10);
+  --warn-soft: rgba(168, 113, 15, 0.12);
+
+  --shadow: 0 1px 2px rgba(27, 26, 23, 0.04), 0 6px 16px rgba(27, 26, 23, 0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #141412;
+    --panel: #1c1c19;
+    --panel-sunk: #232320;
+    --ink: #eceae4;
+    --ink-soft: #a8a49b;
+    --ink-faint: #726e66;
+    --line: #2e2e29;
+    --line-strong: #403f39;
+
+    --accent: #7fa8c4;
+    --accent-soft: rgba(127, 168, 196, 0.14);
+
+    --up: #e8635c;
+    --down: #3fb98c;
+    --warn: #d69a2e;
+    --up-soft: rgba(232, 99, 92, 0.14);
+    --down-soft: rgba(63, 185, 140, 0.14);
+    --warn-soft: rgba(214, 154, 46, 0.16);
+
+    --shadow: none;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 数字一律等宽对齐 */
+.num, td.num, th.num, .metric-value, .score-value {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* ---------- 顶栏与导航 ---------- */
+
+.masthead {
+  border-bottom: var(--rule) solid var(--line);
+  background: var(--panel);
+}
+
+.masthead-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 18px 24px 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.wordmark {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.wordmark .wordmark-sub {
+  display: block;
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.18em;
+  color: var(--ink-faint);
+  margin-top: 3px;
+}
+
+.stamp {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink-faint);
+  letter-spacing: 0.02em;
+}
+
+.tabs {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 14px 24px 0;
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar { display: none; }
+
+.tabs a {
+  flex: 0 0 auto;
+  padding: 9px 14px 11px;
+  color: var(--ink-soft);
+  text-decoration: none;
+  font-size: 13.5px;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  transition: color .15s ease, border-color .15s ease;
+}
+.tabs a:hover { color: var(--ink); }
+.tabs a[aria-current="page"] {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+  font-weight: 500;
+}
+
+/* ---------- 页面骨架 ---------- */
+
+main {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 28px 24px 64px;
+}
+
+.page-head { margin-bottom: 26px; }
+
+.page-title {
+  font-family: var(--font-display);
+  font-size: 27px;
+  font-weight: 600;
+  margin: 0 0 6px;
+  letter-spacing: -0.01em;
+}
+
+.page-note {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 13.5px;
+  max-width: 62ch;
+}
+
+.grid { display: grid; gap: var(--gap); }
+.grid.cols-2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+.grid.cols-4 { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+
+.card {
+  background: var(--panel);
+  border: var(--rule) solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+
+.card-title {
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin: 0 0 16px;
+}
+
+.section { margin-top: 32px; }
+.section:first-of-type { margin-top: 0; }
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  margin-bottom: 16px;
+  border-bottom: var(--rule) solid var(--line);
+}
+
+.section-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.section-meta { font-size: 12.5px; color: var(--ink-faint); }
+
+/* ---------- 仪表盘（首页签名元素） ---------- */
+
+.gauge-wrap {
+  display: grid;
+  grid-template-columns: minmax(260px, 340px) 1fr;
+  gap: 32px;
+  align-items: center;
+}
+@media (max-width: 720px) {
+  .gauge-wrap { grid-template-columns: 1fr; gap: 20px; }
+}
+
+.gauge { position: relative; }
+.gauge svg { width: 100%; height: auto; display: block; }
+
+.gauge-readout {
+  text-align: center;
+  margin-top: 4px;
+}
+
+.score-value {
+  font-family: var(--font-display);
+  font-size: 54px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.score-of {
+  font-size: 12px;
+  color: var(--ink-faint);
+  letter-spacing: 0.08em;
+  margin-top: 4px;
+}
+
+.mode-line {
+  margin-top: 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* 四档模式带：把 40/60/80 阈值结构本身画出来 */
+.regime-band { display: grid; gap: 8px; }
+
+.regime {
+  display: grid;
+  grid-template-columns: 62px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border: var(--rule) solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-sunk);
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.regime.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.regime-range {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+.regime.is-active .regime-range { color: var(--accent); }
+
+.regime-cap {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 计量条 ---------- */
+
+.meter-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.meter-label { font-size: 13px; color: var(--ink-soft); }
+
+.meter-value {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.meter-track {
+  height: 5px;
+  background: var(--panel-sunk);
+  border-radius: 3px;
+  overflow: hidden;
+  border: var(--rule) solid var(--line);
+}
+
+.meter-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width .5s cubic-bezier(.2,.7,.3,1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meter-fill, .bar-fill { transition: none; }
+}
+
+.meter + .meter { margin-top: 14px; }
+
+.meter-detail {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 表格 ---------- */
+
+.table-wrap { overflow-x: auto; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  padding: 0 12px 9px;
+  border-bottom: var(--rule) solid var(--line-strong);
+  white-space: nowrap;
+}
+
+td {
+  padding: 11px 12px;
+  border-bottom: var(--rule) solid var(--line);
+  vertical-align: top;
+}
+
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--panel-sunk); }
+
+th.right, td.right { text-align: right; }
+
+.ticker {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.01em;
+}
+
+.name-cell { font-weight: 500; }
+
+.reason-cell {
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  max-width: 40ch;
+}
+
+/* 涨跌着色（A股：红涨绿跌） */
+.up { color: var(--up); }
+.down { color: var(--down); }
+.flat { color: var(--ink-faint); }
+
+/* ---------- 徽标 ---------- */
+
+.badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.badge-hold { background: var(--panel-sunk); color: var(--ink-soft); border: var(--rule) solid var(--line); }
+.badge-add  { background: var(--up-soft); color: var(--up); }
+.badge-cut  { background: var(--down-soft); color: var(--down); }
+.badge-warn { background: var(--warn-soft); color: var(--warn); }
+
+.chip {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11.5px;
+  font-weight: 500;
+  margin: 2px 4px 2px 0;
+}
+
+/* ---------- 信号 / 预警条目 ---------- */
+
+.signal {
+  border: var(--rule) solid var(--line);
+  border-left: 3px solid var(--up);
+  border-radius: 8px;
+  padding: 14px 16px;
+  background: var(--panel);
+  margin-bottom: 10px;
+}
+
+.signal-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.signal-code {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.signal-score {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.alert {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 11px;
+  padding: 12px 14px;
+  border: var(--rule) solid var(--line);
+  border-radius: 8px;
+  margin-bottom: 9px;
+  background: var(--panel);
+  font-size: 13.5px;
+}
+
+.alert-mark {
+  width: 6px;
+  border-radius: 3px;
+  background: var(--warn);
+}
+.alert.is-critical .alert-mark { background: var(--up); }
+
+/* ---------- 空状态 ---------- */
+
+.empty {
+  padding: 30px 20px;
+  text-align: center;
+  color: var(--ink-faint);
+  font-size: 13.5px;
+  background: var(--panel-sunk);
+  border: var(--rule) dashed var(--line-strong);
+  border-radius: 8px;
+}
+
+.empty strong {
+  display: block;
+  color: var(--ink-soft);
+  font-weight: 600;
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+
+/* ---------- 指标格 ---------- */
+
+.metric {
+  padding: 16px 18px;
+  border: var(--rule) solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.metric-label {
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 7px;
+}
+
+.metric-value {
+  font-family: var(--font-display);
+  font-size: 25px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.metric-foot { font-size: 12px; color: var(--ink-faint); margin-top: 5px; }
+
+/* ---------- 表单 ---------- */
+
+.form-grid {
+  display: grid;
+  gap: 14px;
+  max-width: 440px;
+}
+
+label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  margin-bottom: 5px;
+}
+
+input {
+  width: 100%;
+  padding: 9px 11px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--paper);
+  border: var(--rule) solid var(--line-strong);
+  border-radius: 7px;
+}
+
+input:focus-visible, button:focus-visible, .tabs a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.hint { font-size: 12px; color: var(--ink-faint); margin-top: 4px; }
+
+button {
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  font-weight: 500;
+  padding: 9px 18px;
+  border-radius: 7px;
+  border: var(--rule) solid transparent;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+button:hover { filter: brightness(1.08); }
+
+button.quiet {
+  background: transparent;
+  color: var(--ink-soft);
+  border-color: var(--line-strong);
+}
+button.danger { background: transparent; color: var(--up); border-color: var(--up); }
+button.danger:hover { background: var(--up-soft); }
+
+.form-status { font-size: 13px; margin-top: 10px; min-height: 1.4em; }
+.form-status.ok { color: var(--down); }
+.form-status.err { color: var(--up); }
+
+/* ---------- 诊断栏 ---------- */
+
+.diag {
+  max-width: 1180px;
+  margin: 16px auto 0;
+  padding: 12px 16px;
+  border: var(--rule) solid var(--warn);
+  background: var(--warn-soft);
+  color: var(--ink);
+  border-radius: 8px;
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  font-family: var(--font-mono);
+}
+
+/* ---------- SVG 曲线 ---------- */
+
+.curve { width: 100%; height: auto; display: block; }
+.curve-line { fill: none; stroke: var(--accent); stroke-width: 2; }
+.curve-area { fill: var(--accent-soft); stroke: none; }
+.curve-axis { stroke: var(--line); stroke-width: 1; }
+.curve-tick {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  fill: var(--ink-faint);
+}
+
+/* 板块条形 */
+.bar-row {
+  display: grid;
+  grid-template-columns: minmax(5.5em, 8em) 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: var(--rule) solid var(--line);
+}
+.bar-row:last-child { border-bottom: none; }
+
+.bar-name { font-weight: 500; font-size: 13.5px; }
+
+.bar-track {
+  height: 20px;
+  background: var(--panel-sunk);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+  border: var(--rule) solid var(--line);
+}
+
+.bar-fill {
+  height: 100%;
+  background: var(--accent);
+  opacity: .85;
+  transition: width .55s cubic-bezier(.2,.7,.3,1);
+}
+
+.bar-meta {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.foot {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 24px 40px;
+  color: var(--ink-faint);
+  font-size: 12px;
+  border-top: var(--rule) solid var(--line);
+  padding-top: 18px;
+}

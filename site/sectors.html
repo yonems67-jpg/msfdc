@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light dark" />
+<title>板块与选股 · Trading Decision Terminal</title>
+<link rel="stylesheet" href="./terminal.css" />
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <h1 class="wordmark">Trading Decision Terminal
+      <span class="wordmark-sub">交易决策终端</span>
+    </h1>
+    <div class="stamp" id="stamp">读取中…</div>
+  </div>
+  <nav class="tabs" id="tabs" aria-label="页面导航"></nav>
+</header>
+
+<div class="diag" id="diag" hidden></div>
+
+<main>
+  <div class="page-head">
+    <h2 class="page-title">板块与选股</h2>
+    <p class="page-note">资金集中的主线板块排名，以及在这些板块内经多因子打分后筛出的候选标的。</p>
+  </div>
+  <section class="section">
+    <div class="section-head">
+      <h3 class="section-title">板块热力</h3>
+      <span class="section-meta">按综合得分取全市场前五</span>
+    </div>
+    <div class="card" id="sectors"></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <h3 class="section-title">多因子选股池</h3>
+      <span class="section-meta">综合评分需达 85 分才进入买入判定</span>
+    </div>
+    <div class="card table-wrap" id="pool"></div>
+  </section>
+</main>
+
+<footer class="foot">个人自用工具，非投资建议。所有信号由量化规则生成，执行前请自行复核。</footer>
+
+<script src="./terminal.js"></script>
+<script>
+(async function () {
+  buildChrome("sectors.html");
+  stampLastRun();
+
+  const [sectors, pool] = await Promise.all([
+    loadJson("sector_rank.json", []),
+    loadJson("stock_pool.json", []),
+  ]);
+
+  panel("板块热力", () => {
+    const el = document.getElementById("sectors");
+    if (!sectors || !sectors.length) {
+      el.innerHTML = emptyState("暂无板块数据", "定时任务运行后自动填充");
+      return;
+    }
+    const top = sectors[0].score || 1;
+    el.innerHTML = sectors.map(s => `<div class="bar-row">
+      <span class="bar-name">${esc(s.sector)}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${((s.score / top) * 100).toFixed(1)}%"></div></div>
+      <span class="bar-meta">${fmt.num(s.score, 1)}　龙头 ${esc(s.leader_name || "—")}</span>
+    </div>`).join("");
+  });
+
+  panel("选股池", () => {
+    const el = document.getElementById("pool");
+    if (!pool || !pool.length) {
+      el.innerHTML = emptyState("今日无候选标的",
+        "市场处于防守模式、或当日无个股达到入池标准时，此处为空");
+      return;
+    }
+    el.innerHTML = `<table>
+      <thead><tr>
+        <th>代码</th><th>所属板块</th>
+        <th class="right">资金</th><th class="right">趋势</th>
+        <th class="right">热点</th><th class="right">风险扣分</th>
+        <th class="right">综合</th>
+      </tr></thead>
+      <tbody>${pool.map(s => {
+        const d = s.detail || {};
+        return `<tr>
+          <td class="ticker">${esc(fmt.code(s.code))}</td>
+          <td class="name-cell">${esc(s.sector || "—")}</td>
+          <td class="right num">${fmt.num(d["资金因子"], 1)}</td>
+          <td class="right num">${fmt.num(d["趋势因子"], 1)}</td>
+          <td class="right num">${fmt.num(d["热点因子"], 1)}</td>
+          <td class="right num${(d["风险扣分"] || 0) > 0 ? " down" : ""}">${
+            (d["风险扣分"] || 0) > 0 ? "−" + fmt.num(d["风险扣分"], 1) : "0.0"}</td>
+          <td class="right num" style="font-weight:600">${fmt.num(s.score, 1)}</td>
+        </tr>`;
+      }).join("")}</tbody></table>`;
+  });
+})();
+</script>
+</body>
+</html>

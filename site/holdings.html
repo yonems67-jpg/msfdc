@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light dark" />
+<title>持仓监控 · Trading Decision Terminal</title>
+<link rel="stylesheet" href="./terminal.css" />
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <h1 class="wordmark">Trading Decision Terminal
+      <span class="wordmark-sub">交易决策终端</span>
+    </h1>
+    <div class="stamp" id="stamp">读取中…</div>
+  </div>
+  <nav class="tabs" id="tabs" aria-label="页面导航"></nav>
+</header>
+
+<div class="diag" id="diag" hidden></div>
+
+<main>
+  <div class="page-head">
+    <h2 class="page-title">持仓监控</h2>
+    <p class="page-note">每 5 分钟重算一次每笔持仓的趋势、资金与市场环境，给出持有、加仓、减仓或清仓的判定。</p>
+  </div>
+  <section class="section">
+    <div class="grid cols-4" id="summary"></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <h3 class="section-title">逐笔判定</h3>
+      <span class="section-meta">红涨绿跌</span>
+    </div>
+    <div class="card table-wrap" id="holdings"></div>
+  </section>
+</main>
+
+<footer class="foot">个人自用工具，非投资建议。所有信号由量化规则生成，执行前请自行复核。</footer>
+
+<script src="./terminal.js"></script>
+<script>
+(async function () {
+  buildChrome("holdings.html");
+  stampLastRun();
+
+  const monitor = await loadJson("monitor.json", []);
+
+  panel("汇总", () => {
+    const el = document.getElementById("summary");
+    if (!monitor || !monitor.length) { el.innerHTML = ""; return; }
+    const withPnl = monitor.filter(m => typeof m.pnl_ratio === "number");
+    const avg = withPnl.length ? withPnl.reduce((a, m) => a + m.pnl_ratio, 0) / withPnl.length : null;
+    const winners = withPnl.filter(m => m.pnl_ratio > 0).length;
+    const needAction = monitor.filter(m => m.action && m.action !== "持有").length;
+
+    const cards = [
+      { label: "持仓笔数", value: monitor.length, foot: "上限 5 笔" },
+      { label: "平均浮动盈亏", value: fmt.signedPct(avg), foot: `${winners} 笔浮盈`, cls: fmt.dirClass(avg) },
+      { label: "待处理提示", value: needAction, foot: needAction ? "见下表操作提示" : "全部维持原仓位" },
+    ];
+    el.innerHTML = cards.map(c => `<div class="metric">
+      <div class="metric-label">${esc(c.label)}</div>
+      <div class="metric-value ${c.cls || ""}">${esc(c.value)}</div>
+      <div class="metric-foot">${esc(c.foot)}</div>
+    </div>`).join("");
+  });
+
+  panel("逐笔判定", () => {
+    const el = document.getElementById("holdings");
+    if (!monitor || !monitor.length) {
+      el.innerHTML = emptyState("当前没有持仓",
+        "到「持仓录入」页面添加买入成本与数量后，系统会开始监控");
+      return;
+    }
+    el.innerHTML = `<table>
+      <thead><tr>
+        <th>代码</th><th class="right">成本</th><th class="right">最新</th>
+        <th class="right">浮动盈亏</th><th>操作提示</th><th>判定依据</th>
+      </tr></thead>
+      <tbody>${monitor.map(m => `<tr>
+        <td class="ticker">${esc(fmt.code(m.code))}</td>
+        <td class="right num">${fmt.price(m.cost_price)}</td>
+        <td class="right num">${fmt.price(m.last_price)}</td>
+        <td class="right num ${fmt.dirClass(m.pnl_ratio)}" style="font-weight:600">${fmt.signedPct(m.pnl_ratio)}</td>
+        <td>${actionBadge(m.action)}</td>
+        <td class="reason-cell">${esc((m.reasons || []).join("；"))}</td>
+      </tr>`).join("")}</tbody></table>`;
+  });
+})();
+</script>
+</body>
+</html>

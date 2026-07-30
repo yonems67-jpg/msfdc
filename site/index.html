@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light dark" />
+<title>市场雷达 · Trading Decision Terminal</title>
+<link rel="stylesheet" href="./terminal.css" />
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <h1 class="wordmark">Trading Decision Terminal
+      <span class="wordmark-sub">交易决策终端</span>
+    </h1>
+    <div class="stamp" id="stamp">读取中…</div>
+  </div>
+  <nav class="tabs" id="tabs" aria-label="页面导航"></nav>
+</header>
+
+<div class="diag" id="diag" hidden></div>
+
+<main>
+  <div class="page-head">
+    <h2 class="page-title">市场雷达</h2>
+    <p class="page-note">当日市场做多价值评分决定总仓位上限。评分跌破 40 分强制空仓，达到 70 分才允许开新仓。</p>
+  </div>
+  <section class="card">
+    <div class="gauge-wrap">
+      <div>
+        <div class="gauge">
+          <div id="gauge"></div>
+          <div class="gauge-readout">
+            <div class="score-value" id="score">—</div>
+            <div class="score-of">满分 100</div>
+            <div class="mode-line" id="mode"></div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <h3 class="card-title">仓位分档</h3>
+        <div class="regime-band" id="regimes"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <h3 class="section-title">评分构成</h3>
+      <span class="section-meta">四项指标加权，合计 100 分</span>
+    </div>
+    <div class="grid cols-2" id="breakdown"></div>
+  </section>
+</main>
+
+<footer class="foot">个人自用工具，非投资建议。所有信号由量化规则生成，执行前请自行复核。</footer>
+
+<script src="./terminal.js"></script>
+<script>
+const REGIMES = [
+  { name: "进攻模式", range: "80 – 100", cap: "70% – 100%", lo: 80, hi: 101 },
+  { name: "正常模式", range: "60 – 79",  cap: "40% – 70%",  lo: 60, hi: 80 },
+  { name: "谨慎模式", range: "40 – 59",  cap: "20% – 30%",  lo: 40, hi: 60 },
+  { name: "防守模式", range: "0 – 39",   cap: "强制空仓",    lo: 0,  hi: 40 },
+];
+
+const MAXES = { "指数趋势": 30, "赚钱效应": 30, "流动性": 20, "情绪偏好": 20 };
+
+(async function () {
+  buildChrome("index.html");
+  stampLastRun();
+
+  const data = await loadJson("market_score.json");
+
+  if (!data) {
+    document.getElementById("breakdown").innerHTML =
+      emptyState("尚无市场评分", "等定时任务首次运行完成后，这里会显示当日评分");
+    document.getElementById("score").textContent = "—";
+    renderGauge(document.getElementById("gauge"), 0);
+    document.getElementById("regimes").innerHTML = REGIMES.map(r =>
+      `<div class="regime"><span class="regime-range">${r.range}</span><span>${r.name}</span><span class="regime-cap">${r.cap}</span></div>`
+    ).join("");
+    return;
+  }
+
+  panel("仪表盘", () => {
+    renderGauge(document.getElementById("gauge"), data.total_score);
+    document.getElementById("score").textContent = fmt.num(data.total_score, 1);
+    document.getElementById("mode").textContent = data.mode || "";
+  });
+
+  panel("仓位分档", () => {
+    const s = Number(data.total_score) || 0;
+    document.getElementById("regimes").innerHTML = REGIMES.map(r => {
+      const active = s >= r.lo && s < r.hi;
+      return `<div class="regime${active ? " is-active" : ""}">
+        <span class="regime-range">${r.range}</span>
+        <span>${r.name}</span>
+        <span class="regime-cap">${r.cap}</span>
+      </div>`;
+    }).join("");
+  });
+
+  panel("评分构成", () => {
+    const bd = data.breakdown || {};
+    const keys = Object.keys(bd);
+    document.getElementById("breakdown").innerHTML = keys.length
+      ? keys.map(k => `<div class="card">
+          <h3 class="card-title">${esc(k)}</h3>
+          ${meter("得分", bd[k].score, MAXES[k] || 30, detailLine(bd[k].detail))}
+        </div>`).join("")
+      : emptyState("暂无评分明细", "");
+  });
+})();
+</script>
+</body>
+</html>

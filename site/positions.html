@@ -2,103 +2,215 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>持仓管理 - AI量化交易决策终端</title>
-<link rel="stylesheet" href="./style.css" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light dark" />
+<title>持仓录入 · Trading Decision Terminal</title>
+<link rel="stylesheet" href="./terminal.css" />
 </head>
 <body>
 
-<header>
-  <h1>持仓管理</h1>
-  <nav>
-    <a href="./index.html">市场总览</a>
-    <a href="./positions.html" class="active">持仓管理</a>
-  </nav>
+<header class="masthead">
+  <div class="masthead-inner">
+    <h1 class="wordmark">Trading Decision Terminal
+      <span class="wordmark-sub">交易决策终端</span>
+    </h1>
+    <div class="stamp" id="stamp">读取中…</div>
+  </div>
+  <nav class="tabs" id="tabs" aria-label="页面导航"></nav>
 </header>
 
-<main>
-  <section class="panel">
-    <h2>新增持仓</h2>
-    <form id="add-form">
-      <label>股票代码
-        <input type="text" id="f-code" placeholder="例如 600519" required />
-      </label>
-      <label>买入成本价
-        <input type="number" id="f-cost" step="0.001" required />
-      </label>
-      <label>持仓数量（股）
-        <input type="number" id="f-qty" step="1" required />
-      </label>
-      <label>所属板块（可选，需与板块热力榜名称一致）
-        <input type="text" id="f-sector" />
-      </label>
-      <button type="submit">保存到 GitHub</button>
-    </form>
-    <div id="form-msg" style="margin-top:10px;font-size:13px;"></div>
-  </section>
+<div class="diag" id="diag" hidden></div>
 
-  <section class="panel full-width">
-    <h2>当前持仓</h2>
-    <table id="positions-table">
-      <thead><tr><th>代码</th><th>成本价</th><th>数量</th><th>板块</th><th>操作</th></tr></thead>
-      <tbody></tbody>
-    </table>
+<main>
+  <div class="page-head">
+    <h2 class="page-title">持仓录入</h2>
+    <p class="page-note">录入的成本与数量是持仓监控的计算依据。数据保存在你自己的仓库里，每 5 分钟被读取一次。</p>
+  </div>
+
+  <div class="grid cols-2">
+    <section class="card">
+      <h3 class="card-title">添加持仓</h3>
+      <div class="form-grid">
+        <div>
+          <label for="f-code">股票代码</label>
+          <input type="text" id="f-code" placeholder="600519" autocomplete="off" inputmode="numeric" />
+          <div class="hint">填 6 位数字即可，系统会自动识别沪深市场</div>
+        </div>
+        <div>
+          <label for="f-cost">买入成本价</label>
+          <input type="number" id="f-cost" step="0.001" placeholder="1250.00" />
+        </div>
+        <div>
+          <label for="f-qty">持仓数量（股）</label>
+          <input type="number" id="f-qty" step="100" placeholder="100" />
+        </div>
+        <div>
+          <label for="f-sector">所属板块（可选）</label>
+          <input type="text" id="f-sector" placeholder="白酒" autocomplete="off" />
+          <div class="hint">与板块热力榜名称一致时，可参与"板块是否仍强势"的判断</div>
+        </div>
+        <div>
+          <button type="button" id="btn-save">保存持仓</button>
+        </div>
+        <div class="form-status" id="status" role="status" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3 class="card-title">接口设置</h3>
+      <div class="form-grid">
+        <div>
+          <label for="f-api">函数地址</label>
+          <input type="text" id="f-api" placeholder="https://xxx.fcapp.run" />
+        </div>
+        <div>
+          <label for="f-secret">访问密钥</label>
+          <input type="password" id="f-secret" placeholder="与函数环境变量 API_SECRET 一致" />
+        </div>
+        <div>
+          <button type="button" class="quiet" id="btn-conn">保存设置并重新读取</button>
+        </div>
+        <div class="hint">设置保存在本机浏览器，不会写入仓库。留空密钥则不做校验（不建议）。</div>
+      </div>
+    </section>
+  </div>
+
+  <section class="section">
+    <div class="section-head">
+      <h3 class="section-title">当前持仓</h3>
+      <span class="section-meta">最多同时持有 5 笔</span>
+    </div>
+    <div class="card table-wrap" id="list"></div>
   </section>
 </main>
 
-<script>
-const API_BASE_URL = "https://position-zjrormarem.cn-hangzhou.fcapp.run";
-const API_SECRET = "";
+<footer class="foot">个人自用工具，非投资建议。所有信号由量化规则生成，执行前请自行复核。</footer>
 
-async function apiCall(path, method = "GET", body = null) {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+<script src="./terminal.js"></script>
+<script>
+/* 接口地址与密钥存在浏览器本地，避免写死在代码里推到公开仓库 */
+const LS_API = "tdt.apiBase", LS_SEC = "tdt.apiSecret";
+
+function getConf() {
+  return {
+    base: (localStorage.getItem(LS_API) || "").replace(/\/+$/, ""),
+    secret: localStorage.getItem(LS_SEC) || "",
+  };
+}
+
+function setStatus(msg, kind) {
+  const el = document.getElementById("status");
+  el.textContent = msg;
+  el.className = "form-status" + (kind ? " " + kind : "");
+}
+
+async function api(path, method = "GET", body = null) {
+  const { base, secret } = getConf();
+  if (!base) throw new Error("尚未填写函数地址");
+  const res = await fetch(base + path, {
     method,
-    headers: { "Content-Type": "application/json", "X-Api-Secret": API_SECRET },
+    headers: Object.assign({ "Content-Type": "application/json" },
+      secret ? { "X-Api-Secret": secret } : {}),
     body: body ? JSON.stringify(body) : undefined,
   });
-  return res.json();
-}
-
-async function loadPositions() {
-  const data = await apiCall("/positions");
-  const tbody = document.querySelector("#positions-table tbody");
-  const positions = data.positions || [];
-  tbody.innerHTML = positions.length ? positions.map(p => `
-    <tr>
-      <td>${p.code}</td><td>${p.cost_price}</td><td>${p.quantity}</td><td>${p.sector || "-"}</td>
-      <td><button class="danger" data-code="${p.code}" onclick="removePosition('${p.code}')">删除</button></td>
-    </tr>`).join("") : `<tr><td colspan="5" class="empty">暂无持仓</td></tr>`;
-}
-
-async function removePosition(code) {
-  if (!confirm(`确认删除持仓 ${code}？`)) return;
-  await apiCall(`/positions/${code}`, "DELETE");
-  loadPositions();
-}
-
-document.getElementById("add-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const msg = document.getElementById("form-msg");
-  msg.textContent = "保存中...";
-  try {
-    const result = await apiCall("/positions", "POST", {
-      code: document.getElementById("f-code").value.trim(),
-      cost_price: parseFloat(document.getElementById("f-cost").value),
-      quantity: parseInt(document.getElementById("f-qty").value, 10),
-      sector: document.getElementById("f-sector").value.trim() || null,
-      opened_at: new Date().toISOString().slice(0, 10),
-    });
-    msg.textContent = result.ok ? "已保存" : `保存失败: ${result.error || "未知错误"}`;
-    if (result.ok) {
-      document.getElementById("add-form").reset();
-      loadPositions();
-    }
-  } catch (err) {
-    msg.textContent = `请求失败: ${err}`;
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.ok === false) {
+    throw new Error(data.error || `HTTP ${res.status}`);
   }
-});
+  return data;
+}
 
-loadPositions();
+function renderList(positions) {
+  const el = document.getElementById("list");
+  if (!positions || !positions.length) {
+    el.innerHTML = emptyState("还没有持仓记录", "用左侧表单添加第一笔");
+    return;
+  }
+  el.innerHTML = `<table>
+    <thead><tr>
+      <th>代码</th><th class="right">成本</th><th class="right">数量</th>
+      <th>板块</th><th>建仓日</th><th class="right">操作</th>
+    </tr></thead>
+    <tbody>${positions.map(p => `<tr>
+      <td class="ticker">${esc(fmt.code(p.code))}</td>
+      <td class="right num">${fmt.price(p.cost_price)}</td>
+      <td class="right num">${esc(p.quantity)}</td>
+      <td>${esc(p.sector || "—")}</td>
+      <td class="num" style="font-size:12.5px;color:var(--ink-faint)">${esc(p.opened_at || "—")}</td>
+      <td class="right"><button type="button" class="danger" data-code="${esc(p.code)}">移除</button></td>
+    </tr>`).join("")}</tbody></table>`;
+
+  el.querySelectorAll("button[data-code]").forEach(b => {
+    b.addEventListener("click", async () => {
+      const code = b.getAttribute("data-code");
+      if (!confirm(`移除 ${code} 这笔持仓？`)) return;
+      try {
+        const r = await api("/positions/" + encodeURIComponent(code), "DELETE");
+        renderList(r.positions);
+        setStatus(`已移除 ${code}`, "ok");
+      } catch (e) { setStatus("移除失败：" + e.message, "err"); }
+    });
+  });
+}
+
+async function refresh() {
+  const { base } = getConf();
+  if (!base) {
+    document.getElementById("list").innerHTML =
+      emptyState("先填写函数地址", "在右侧「接口设置」填入 .fcapp.run 地址后即可读取持仓");
+    return;
+  }
+  try {
+    const r = await api("/positions");
+    renderList(r.positions);
+  } catch (e) {
+    document.getElementById("list").innerHTML =
+      emptyState("读取持仓失败", e.message);
+  }
+}
+
+(function () {
+  buildChrome("positions.html");
+  stampLastRun();
+
+  const conf = getConf();
+  document.getElementById("f-api").value = conf.base;
+  document.getElementById("f-secret").value = conf.secret;
+
+  document.getElementById("btn-conn").addEventListener("click", () => {
+    localStorage.setItem(LS_API, document.getElementById("f-api").value.trim());
+    localStorage.setItem(LS_SEC, document.getElementById("f-secret").value);
+    setStatus("设置已保存", "ok");
+    refresh();
+  });
+
+  document.getElementById("btn-save").addEventListener("click", async () => {
+    const code = document.getElementById("f-code").value.trim();
+    const cost = parseFloat(document.getElementById("f-cost").value);
+    const qty = parseInt(document.getElementById("f-qty").value, 10);
+    const sector = document.getElementById("f-sector").value.trim();
+
+    if (!code) { setStatus("请填写股票代码", "err"); return; }
+    if (!(cost > 0)) { setStatus("成本价需大于 0", "err"); return; }
+    if (!(qty > 0)) { setStatus("持仓数量需大于 0", "err"); return; }
+
+    setStatus("正在保存…");
+    try {
+      const r = await api("/positions", "POST", {
+        code, cost_price: cost, quantity: qty,
+        sector: sector || null,
+        opened_at: new Date().toISOString().slice(0, 10),
+      });
+      renderList(r.positions);
+      setStatus(`已保存 ${code}`, "ok");
+      ["f-code", "f-cost", "f-qty", "f-sector"].forEach(id => document.getElementById(id).value = "");
+    } catch (e) {
+      setStatus("保存失败：" + e.message, "err");
+    }
+  });
+
+  refresh();
+})();
 </script>
 </body>
 </html>
