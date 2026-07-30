@@ -1,8 +1,8 @@
 [
   {
-    "code": "TEST001",
-    "cost_price": 1.0,
-    "quantity": 1,
+    "code": "000938",
+    "cost_price": 43.945,
+    "quantity": 200,
     "last_price": null,
     "pnl_ratio": null,
     "action": "持有",
