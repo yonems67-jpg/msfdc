@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>AI量化交易决策终端</title>
 <link rel="stylesheet" href="./style.css" />
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -17,19 +16,23 @@
   </nav>
 </header>
 
+<!-- 诊断栏：任何面板渲染失败都会在这里显示原因，正常时自动隐藏 -->
+<div id="diag" style="display:none;margin:12px 20px;padding:10px 14px;border:1px solid #7a3b3b;background:#2a1a1a;color:#ffb4b4;border-radius:8px;font-size:13px;white-space:pre-wrap;"></div>
+
 <main>
 
   <section class="panel">
     <h2>市场雷达（择时评分）</h2>
     <div class="score-big" id="market-score">--</div>
     <div class="mode-tag" id="market-mode">--</div>
+    <div id="market-breakdown" style="margin-top:12px;font-size:13px;"></div>
     <canvas id="radar-chart" height="200"></canvas>
   </section>
 
   <section class="panel">
     <h2>板块热力排行 TOP5</h2>
     <table id="sector-table">
-      <thead><tr><th>板块</th><th>得分</th><th>龙头强度</th><th>持续性</th></tr></thead>
+      <thead><tr><th>板块</th><th>得分</th><th>龙头</th><th>龙头强度</th></tr></thead>
       <tbody></tbody>
     </table>
   </section>
@@ -62,16 +65,90 @@
 
   <section class="panel full-width">
     <h2>策略回测（净值曲线）</h2>
+    <div id="backtest-metrics" style="font-size:13px;color:var(--muted);"></div>
     <canvas id="equity-chart" height="80"></canvas>
-    <div id="backtest-metrics" style="margin-top:12px;font-size:13px;color:var(--muted);"></div>
   </section>
 
 </main>
 
-<script src="./app.js"></script>
 <script>
+// ============================================================
+// 所有逻辑内联在此，不依赖外部 app.js —— 避免 app.js 加载失败导致整页空白
+// ============================================================
+
+const DATA_BASE = "./data";
+const diagMessages = [];
+
+function reportProblem(where, err) {
+  const msg = "[" + where + "] " + (err && err.message ? err.message : err);
+  diagMessages.push(msg);
+  const el = document.getElementById("diag");
+  el.style.display = "block";
+  el.textContent = "以下部分加载异常（其余面板不受影响）：\n" + diagMessages.join("\n");
+  console.error(where, err);
+}
+
+async function fetchJson(name, fallback = null) {
+  try {
+    const res = await fetch(DATA_BASE + "/" + name + "?t=" + Date.now(), { cache: "no-store" });
+    if (!res.ok) {
+      if (res.status !== 404) reportProblem(name, "HTTP " + res.status);
+      return fallback;
+    }
+    return await res.json();
+  } catch (e) {
+    reportProblem(name, e);
+    return fallback;
+  }
+}
+
+function modeClass(mode) {
+  if (!mode) return "";
+  if (mode.includes("进攻")) return "mode-attack";
+  if (mode.includes("正常")) return "mode-normal";
+  if (mode.includes("谨慎")) return "mode-caution";
+  return "mode-defense";
+}
+
+function actionBadgeClass(action) {
+  if (!action) return "badge-hold";
+  if (action.includes("买入") || action.includes("加仓")) return "badge-add";
+  if (action.includes("清仓") || action.includes("减仓")) return "badge-reduce";
+  return "badge-hold";
+}
+
+function pct(v, digits) {
+  if (digits === undefined) digits = 2;
+  return (v == null) ? "-" : (v * 100).toFixed(digits) + "%";
+}
+
+// 图表库可选加载：三个 CDN 依次尝试，全失败就只是不画图
+function loadChartLib() {
+  return new Promise(function (resolve) {
+    const urls = [
+      "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js",
+      "https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js",
+      "https://unpkg.com/chart.js@4.4.0/dist/chart.umd.min.js"
+    ];
+    let i = 0;
+    const tryNext = function () {
+      if (i >= urls.length) { resolve(false); return; }
+      const s = document.createElement("script");
+      s.src = urls[i++];
+      s.onload = function () { resolve(true); };
+      s.onerror = tryNext;
+      document.head.appendChild(s);
+    };
+    tryNext();
+  });
+}
+
+function safeRender(name, fn) {
+  try { fn(); } catch (e) { reportProblem(name, e); }
+}
+
 async function render() {
-  const [marketScore, sectors, stockPool, signals, monitor, risk, lastRun, backtest] = await Promise.all([
+  const results = await Promise.all([
     fetchJson("market_score.json"),
     fetchJson("sector_rank.json", []),
     fetchJson("stock_pool.json", []),
@@ -79,86 +156,136 @@ async function render() {
     fetchJson("monitor.json", []),
     fetchJson("risk_status.json"),
     fetchJson("last_run.json"),
-    fetchJson("backtest_stats.json"),
+    fetchJson("backtest_stats.json")
   ]);
+  const marketScore = results[0], sectors = results[1], stockPool = results[2],
+        signals = results[3], monitor = results[4], risk = results[5],
+        lastRun = results[6], backtest = results[7];
 
-  if (lastRun) setUpdatedTime(lastRun.run_at);
+  safeRender("最后更新时间", function () {
+    if (lastRun && lastRun.run_at) {
+      document.getElementById("updated-time").textContent = "最后更新: " + lastRun.run_at;
+    }
+  });
 
-  // 市场评分
-  if (marketScore) {
+  safeRender("市场评分", function () {
+    if (!marketScore) return;
     document.getElementById("market-score").textContent = marketScore.total_score;
     const modeEl = document.getElementById("market-mode");
-    modeEl.textContent = marketScore.mode;
+    modeEl.textContent = marketScore.mode || "--";
     modeEl.className = "mode-tag " + modeClass(marketScore.mode);
+    const bd = marketScore.breakdown || {};
+    document.getElementById("market-breakdown").innerHTML = Object.keys(bd)
+      .map(function (k) { return "<div>" + k + ": <strong>" + bd[k].score + "</strong></div>"; }).join("");
+  });
 
-    const breakdown = marketScore.breakdown || {};
-    const labels = Object.keys(breakdown);
-    const values = labels.map(k => breakdown[k].score);
-    new Chart(document.getElementById("radar-chart"), {
-      type: "radar",
-      data: { labels, datasets: [{ label: "得分", data: values, backgroundColor: "rgba(79,140,255,.2)", borderColor: "#4f8cff" }] },
-      options: { scales: { r: { grid: { color: "#262c35" }, angleLines: { color: "#262c35" }, pointLabels: { color: "#8b93a1" }, ticks: { display: false } } }, plugins: { legend: { display: false } } }
-    });
-  }
+  safeRender("板块排行", function () {
+    const tbody = document.querySelector("#sector-table tbody");
+    tbody.innerHTML = (sectors && sectors.length)
+      ? sectors.map(function (s) {
+          return "<tr><td>" + s.sector + "</td><td>" + s.score + "</td><td>" +
+                 (s.leader_name || "-") + "</td><td>" + s.leader_strength + "</td></tr>";
+        }).join("")
+      : '<tr><td colspan="4" class="empty">暂无数据</td></tr>';
+  });
 
-  // 板块排行
-  const sectorBody = document.querySelector("#sector-table tbody");
-  sectorBody.innerHTML = sectors.length ? sectors.map(s =>
-    `<tr><td>${s.sector}</td><td>${s.score}</td><td>${s.leader_strength}</td><td>${s.persistence}</td></tr>`
-  ).join("") : `<tr><td colspan="4" class="empty">暂无数据</td></tr>`;
+  safeRender("选股池", function () {
+    const tbody = document.querySelector("#stock-pool-table tbody");
+    tbody.innerHTML = (stockPool && stockPool.length)
+      ? stockPool.map(function (s) {
+          return "<tr><td>" + s.code + "</td><td>" + (s.sector || "-") + "</td><td>" + s.score + "</td></tr>";
+        }).join("")
+      : '<tr><td colspan="3" class="empty">暂无数据（防守模式或未达标时为空）</td></tr>';
+  });
 
-  // 选股池
-  const poolBody = document.querySelector("#stock-pool-table tbody");
-  poolBody.innerHTML = stockPool.length ? stockPool.map(s =>
-    `<tr><td>${s.code}</td><td>${s.sector || "-"}</td><td>${s.score}</td></tr>`
-  ).join("") : `<tr><td colspan="3" class="empty">暂无数据（可能是防守模式或今日未达标）</td></tr>`;
+  safeRender("买入信号", function () {
+    document.getElementById("signals-list").innerHTML = (signals && signals.length)
+      ? signals.map(function (s) {
+          return '<div class="alert-item"><span class="badge badge-buy">买入</span> ' + s.code +
+                 "（" + (s.sector || "-") + "）— " + (s.matched_patterns || []).join("、") + "</div>";
+        }).join("")
+      : '<div class="empty">今日暂无买入信号</div>';
+  });
 
-  // 买入信号
-  const signalsList = document.getElementById("signals-list");
-  signalsList.innerHTML = signals.length
-    ? signals.map(s => `<div class="alert-item"><span class="badge badge-buy">买入</span> ${s.code}（${s.sector || "-"}）— ${(s.matched_patterns || []).join("、")}</div>`).join("")
-    : `<div class="empty">今日暂无买入信号</div>`;
+  safeRender("持仓监控", function () {
+    const tbody = document.querySelector("#monitor-table tbody");
+    tbody.innerHTML = (monitor && monitor.length)
+      ? monitor.map(function (m) {
+          return "<tr><td>" + m.code + "</td><td>" + (m.cost_price == null ? "-" : m.cost_price) +
+                 "</td><td>" + (m.last_price == null ? "-" : m.last_price) + "</td><td>" + pct(m.pnl_ratio) +
+                 '</td><td><span class="badge ' + actionBadgeClass(m.action) + '">' + m.action +
+                 "</span></td><td>" + (m.reasons || []).join("；") + "</td></tr>";
+        }).join("")
+      : '<tr><td colspan="6" class="empty">当前无持仓</td></tr>';
+  });
 
-  // 持仓监控
-  const monitorBody = document.querySelector("#monitor-table tbody");
-  monitorBody.innerHTML = monitor.length ? monitor.map(m => `
-    <tr>
-      <td>${m.code}</td>
-      <td>${m.cost_price ?? "-"}</td>
-      <td>${m.last_price ?? "-"}</td>
-      <td>${m.pnl_ratio != null ? (m.pnl_ratio * 100).toFixed(2) + "%" : "-"}</td>
-      <td><span class="badge ${actionBadgeClass(m.action)}">${m.action}</span></td>
-      <td>${(m.reasons || []).join("；")}</td>
-    </tr>`).join("") : `<tr><td colspan="6" class="empty">当前无持仓</td></tr>`;
-
-  // 风险预警
-  const riskEl = document.getElementById("risk-alerts");
-  if (risk) {
+  safeRender("风险预警", function () {
+    const el = document.getElementById("risk-alerts");
+    if (!risk) { el.innerHTML = '<div class="empty">暂无数据</div>'; return; }
     const items = [];
     if (risk.halt_new_positions) items.push("⚠️ 今日已触发风控，暂停新开仓");
-    (risk.stock_hard_stoploss_alerts || []).forEach(a => items.push(`⚠️ ${a.code} 触发单只硬止损（占总资金 ${(a.loss_ratio_of_total_capital*100).toFixed(2)}%），禁止加仓`));
-    if (risk.weekly_drawdown_check && risk.weekly_drawdown_check.triggered) items.push(`⚠️ 单周回撤 ${(risk.weekly_drawdown_check.drawdown*100).toFixed(2)}%，次周仓位上限降至 ${(risk.position_cap_override*100).toFixed(0)}%`);
-    riskEl.innerHTML = items.length ? items.map(i => `<div class="alert-item">${i}</div>`).join("") : `<div class="empty">当前无风险预警</div>`;
-  } else {
-    riskEl.innerHTML = `<div class="empty">暂无数据</div>`;
+    (risk.stock_hard_stoploss_alerts || []).forEach(function (a) {
+      items.push("⚠️ " + a.code + " 触发单只硬止损（占总资金 " + pct(a.loss_ratio_of_total_capital) + "），禁止加仓");
+    });
+    if (risk.weekly_drawdown_check && risk.weekly_drawdown_check.triggered) {
+      items.push("⚠️ 单周回撤 " + pct(risk.weekly_drawdown_check.drawdown) +
+                 "，次周仓位上限降至 " + pct(risk.position_cap_override, 0));
+    }
+    el.innerHTML = items.length
+      ? items.map(function (i) { return '<div class="alert-item">' + i + "</div>"; }).join("")
+      : '<div class="empty">当前无风险预警</div>';
+  });
+
+  safeRender("回测统计", function () {
+    const el = document.getElementById("backtest-metrics");
+    if (!backtest || backtest.error) {
+      el.textContent = "暂无回测数据（需要先积累实盘成交记录）";
+      return;
+    }
+    el.textContent = "年化收益率 " + pct(backtest.annualized_return, 1) +
+      " ｜ 最大回撤 " + pct(backtest.max_drawdown, 1) +
+      " ｜ 胜率 " + pct(backtest.win_rate, 1) +
+      " ｜ 盈亏比 " + (backtest.profit_loss_ratio == null ? "-" : backtest.profit_loss_ratio) +
+      " ｜ 夏普 " + backtest.sharpe_ratio +
+      " ｜ 最大连亏 " + backtest.max_consecutive_losses + "次";
+  });
+
+  // ---- 图表放最后且完全隔离：画不出来不影响上面任何数据面板 ----
+  const chartOk = await loadChartLib();
+  if (!chartOk) {
+    reportProblem("图表库", "Chart.js 三个 CDN 均加载失败，已跳过图表绘制（数据面板不受影响）");
+    return;
   }
 
-  // 回测
-  if (backtest && backtest.equity_curve) {
+  safeRender("雷达图", function () {
+    if (!marketScore || !marketScore.breakdown) return;
+    const bd = marketScore.breakdown;
+    const labels = Object.keys(bd);
+    new Chart(document.getElementById("radar-chart"), {
+      type: "radar",
+      data: { labels: labels, datasets: [{ label: "得分", data: labels.map(function (k) { return bd[k].score; }),
+        backgroundColor: "rgba(79,140,255,.2)", borderColor: "#4f8cff" }] },
+      options: { scales: { r: { grid: { color: "#262c35" }, angleLines: { color: "#262c35" },
+        pointLabels: { color: "#8b93a1" }, ticks: { display: false } } }, plugins: { legend: { display: false } } }
+    });
+  });
+
+  safeRender("净值曲线", function () {
+    if (!backtest || !backtest.equity_curve) return;
     new Chart(document.getElementById("equity-chart"), {
       type: "line",
       data: {
-        labels: backtest.equity_curve.map(p => p.close_date),
-        datasets: [{ label: "账户净值", data: backtest.equity_curve.map(p => p.equity), borderColor: "#4f8cff", tension: 0.2, pointRadius: 0 }]
+        labels: backtest.equity_curve.map(function (p) { return p.close_date; }),
+        datasets: [{ label: "账户净值", data: backtest.equity_curve.map(function (p) { return p.equity; }),
+          borderColor: "#4f8cff", tension: 0.2, pointRadius: 0 }]
       },
-      options: { scales: { x: { ticks: { color: "#8b93a1" } }, y: { ticks: { color: "#8b93a1" } } }, plugins: { legend: { display: false } } }
+      options: { scales: { x: { ticks: { color: "#8b93a1" } }, y: { ticks: { color: "#8b93a1" } } },
+        plugins: { legend: { display: false } } }
     });
-    document.getElementById("backtest-metrics").textContent =
-      `年化收益率 ${(backtest.annualized_return*100).toFixed(1)}% ｜ 最大回撤 ${(backtest.max_drawdown*100).toFixed(1)}% ｜ 胜率 ${(backtest.win_rate*100).toFixed(1)}% ｜ 盈亏比 ${backtest.profit_loss_ratio ?? "-"} ｜ 夏普 ${backtest.sharpe_ratio} ｜ 最大连亏 ${backtest.max_consecutive_losses}次`;
-  }
+  });
 }
 
-render();
+render().catch(function (e) { reportProblem("整体渲染", e); });
 </script>
 </body>
 </html>
