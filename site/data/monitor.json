@@ -7,7 +7,40 @@
     "pnl_ratio": -0.1505,
     "action": "清仓",
     "reasons": [
-      "市场择时评分 38.4 跌破 40，全部持仓强制清仓"
+      "市场择时评分 39.0 跌破 40，全部持仓强制清仓"
+    ]
+  },
+  {
+    "code": "588710",
+    "cost_price": 3.095,
+    "quantity": 300,
+    "last_price": null,
+    "pnl_ratio": -0.0223,
+    "action": "清仓",
+    "reasons": [
+      "市场择时评分 39.0 跌破 40，全部持仓强制清仓"
+    ]
+  },
+  {
+    "code": "600986",
+    "cost_price": 7.275,
+    "quantity": 100,
+    "last_price": null,
+    "pnl_ratio": -0.0268,
+    "action": "清仓",
+    "reasons": [
+      "市场择时评分 39.0 跌破 40，全部持仓强制清仓"
+    ]
+  },
+  {
+    "code": "600986",
+    "cost_price": 7.275,
+    "quantity": 100,
+    "last_price": null,
+    "pnl_ratio": -0.0268,
+    "action": "清仓",
+    "reasons": [
+      "市场择时评分 39.0 跌破 40，全部持仓强制清仓"
     ]
   }
 ]
