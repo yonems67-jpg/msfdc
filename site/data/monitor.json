@@ -4,10 +4,10 @@
     "cost_price": 43.945,
     "quantity": 200,
     "last_price": null,
-    "pnl_ratio": null,
-    "action": "持有",
+    "pnl_ratio": -0.1505,
+    "action": "清仓",
     "reasons": [
-      "行情数据缺失，暂维持原状，建议人工核查"
+      "市场择时评分 38.9 跌破 40，全部持仓强制清仓"
     ]
   }
 ]
