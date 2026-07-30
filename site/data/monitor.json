@@ -3,22 +3,22 @@
     "code": "000938",
     "cost_price": 43.945,
     "quantity": 200,
-    "last_price": 37.33,
+    "last_price": null,
     "pnl_ratio": -0.1505,
     "action": "清仓",
     "reasons": [
-      "触发技术形态卖出：跌破MA10 / 放量长阴"
+      "市场择时评分 39.2 跌破 40，全部持仓强制清仓"
     ]
   },
   {
     "code": "588710",
     "cost_price": 3.095,
     "quantity": 300,
-    "last_price": 3.026,
+    "last_price": null,
     "pnl_ratio": -0.0223,
-    "action": "持有",
+    "action": "清仓",
     "reasons": [
-      "趋势完好，主力资金无持续流出，维持原有仓位"
+      "市场择时评分 39.2 跌破 40，全部持仓强制清仓"
     ]
   }
 ]
