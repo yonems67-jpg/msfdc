@@ -1,1 +1,13 @@
-[]
+[
+  {
+    "code": "TEST001",
+    "cost_price": 1.0,
+    "quantity": 1,
+    "last_price": null,
+    "pnl_ratio": null,
+    "action": "持有",
+    "reasons": [
+      "行情数据缺失，暂维持原状，建议人工核查"
+    ]
+  }
+]
