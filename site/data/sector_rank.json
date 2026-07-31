@@ -30,6 +30,21 @@
     "leader_code": "bj920130"
   },
   {
+    "sector": "游戏",
+    "score": 80.5,
+    "detail": {
+      "资金净流入": 28.0,
+      "近5日涨幅": 12.5,
+      "板块涨跌家数比": 20.0,
+      "龙头强度": 15.0,
+      "持续性": 5.0
+    },
+    "leader_strength": 1.0,
+    "persistence": 0.5,
+    "leader_name": "昆仑万维",
+    "leader_code": "sz300418"
+  },
+  {
     "sector": "文化传媒",
     "score": 80.4,
     "detail": {
@@ -58,20 +73,5 @@
     "persistence": 0.5,
     "leader_name": "长芯博创",
     "leader_code": "sz300548"
-  },
-  {
-    "sector": "游戏",
-    "score": 80.17,
-    "detail": {
-      "资金净流入": 27.67,
-      "近5日涨幅": 12.5,
-      "板块涨跌家数比": 20.0,
-      "龙头强度": 15.0,
-      "持续性": 5.0
-    },
-    "leader_strength": 1.0,
-    "persistence": 0.5,
-    "leader_name": "昆仑万维",
-    "leader_code": "sz300418"
   }
 ]
