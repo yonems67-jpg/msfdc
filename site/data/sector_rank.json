@@ -11,8 +11,8 @@
     },
     "leader_strength": 1.0,
     "persistence": 0.5,
-    "leader_name": "致远互联",
-    "leader_code": "sh688369"
+    "leader_name": "索辰科技",
+    "leader_code": "sh688507"
   },
   {
     "sector": "IT服务",
@@ -30,27 +30,12 @@
     "leader_code": "bj920130"
   },
   {
-    "sector": "文化传媒",
-    "score": 80.31,
-    "detail": {
-      "资金净流入": 29.0,
-      "近5日涨幅": 12.5,
-      "板块涨跌家数比": 18.81,
-      "龙头强度": 15.0,
-      "持续性": 5.0
-    },
-    "leader_strength": 1.0,
-    "persistence": 0.5,
-    "leader_name": "中文在线",
-    "leader_code": "sz300364"
-  },
-  {
     "sector": "通信设备",
-    "score": 80.28,
+    "score": 80.5,
     "detail": {
       "资金净流入": 28.0,
       "近5日涨幅": 12.5,
-      "板块涨跌家数比": 19.78,
+      "板块涨跌家数比": 20.0,
       "龙头强度": 15.0,
       "持续性": 5.0
     },
@@ -60,18 +45,33 @@
     "leader_code": "sz301165"
   },
   {
-    "sector": "通用设备",
-    "score": 80.06,
+    "sector": "文化传媒",
+    "score": 80.05,
     "detail": {
-      "资金净流入": 28.67,
+      "资金净流入": 29.0,
       "近5日涨幅": 12.5,
-      "板块涨跌家数比": 18.89,
+      "板块涨跌家数比": 18.55,
       "龙头强度": 15.0,
       "持续性": 5.0
     },
     "leader_strength": 1.0,
     "persistence": 0.5,
-    "leader_name": "丰光精密",
-    "leader_code": "bj920510"
+    "leader_name": "中文在线",
+    "leader_code": "sz300364"
+  },
+  {
+    "sector": "通用设备",
+    "score": 79.9,
+    "detail": {
+      "资金净流入": 28.67,
+      "近5日涨幅": 12.5,
+      "板块涨跌家数比": 18.73,
+      "龙头强度": 15.0,
+      "持续性": 5.0
+    },
+    "leader_strength": 1.0,
+    "persistence": 0.5,
+    "leader_name": "长鹰硬科",
+    "leader_code": "bj920238"
   }
 ]
