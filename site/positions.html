@@ -24,10 +24,7 @@
 <main>
   <div class="page-head">
     <h2 class="page-title">持仓录入</h2>
-    <p class="page-note">
-      手动登记实际成交，用于持仓监控与影子记录对照。
-      <strong>影子模式</strong>下只记录不视为真实持仓，用来积累信号质量数据。
-    </p>
+    <p class="page-note">手动登记实际成交。影子模式只记录，不计入持仓与仓位。</p>
   </div>
 
   <section class="card">
@@ -36,7 +33,7 @@
       <label class="fld"><span>股票代码</span>
         <input id="f-code" inputmode="numeric" maxlength="6" placeholder="600000" /></label>
       <label class="fld"><span>名称（可选）</span>
-        <input id="f-name" placeholder="自动补全失败时手填" /></label>
+        <input id="f-name" placeholder="可留空" /></label>
       <label class="fld"><span>方向</span>
         <select id="f-side"><option value="buy">买入</option><option value="sell">卖出</option></select></label>
       <label class="fld"><span>成交价</span>
@@ -47,7 +44,7 @@
         <input id="f-date" type="date" /></label>
       <label class="fld"><span>模式</span>
         <select id="f-mode">
-          <option value="shadow">影子记录（不下单）</option>
+          <option value="shadow">影子记录</option>
           <option value="real">真实成交</option>
         </select></label>
       <label class="fld"><span>备注</span>
@@ -60,22 +57,12 @@
     </div>
   </section>
 
-  <section class="card" id="shadow-note"></section>
-
   <section class="section">
     <div class="section-head">
       <h3 class="section-title">已登记记录</h3>
       <span class="section-meta" id="log-meta">—</span>
     </div>
     <div class="card" id="log"></div>
-  </section>
-
-  <section class="section">
-    <div class="section-head">
-      <h3 class="section-title">影子交易怎么用</h3>
-      <span class="section-meta">回测通过不等于能上真钱</span>
-    </div>
-    <div class="card" id="howto"></div>
   </section>
 </main>
 
@@ -90,12 +77,10 @@ function setMsg(text, kind) {
   el.textContent = text;
   el.className = "form-msg" + (kind ? " is-" + kind : "");
 }
-
 function val(id) { return (document.getElementById(id).value || "").trim(); }
 
 function validate() {
-  const code = val("f-code");
-  if (!/^\d{6}$/.test(code)) return "股票代码需为 6 位数字";
+  if (!/^\d{6}$/.test(val("f-code"))) return "股票代码需为 6 位数字";
   const px = parseFloat(val("f-price"));
   if (!isFinite(px) || px <= 0) return "成交价无效";
   const sh = parseInt(val("f-shares"), 10);
@@ -144,17 +129,6 @@ async function submit() {
   }
 }
 
-const HOWTO = [
-  ["为什么要空跑", "回测通过只说明「在过去五年、按这套规则、且滑点确实是估计值」时成立。"
-    + "三个前提都可能不成立 —— 市场结构会变、执行会漂移、滑点是估的。"],
-  ["跑多久", "至少到滚动缓存满 60 个交易日，主因子从「当日成交额代理」切换到真实的 60 日均额。"
-    + "同时积累 50–100 笔信号。"],
-  ["比什么", "实际单笔净收益落在回测分布的什么分位。低于 25 分位说明回测有系统性乐观，"
-    + "最常见的原因是滑点估低了。"],
-  ["然后呢", "把实测滑点填回 config，重跑回测，看结论还成不成立。"
-    + "这一步很多人跳过，然后用真钱去发现回测是假的。"],
-];
-
 (async function () {
   buildChrome("positions.html");
   stampLastRun();
@@ -165,29 +139,6 @@ const HOWTO = [
     ["f-code", "f-name", "f-price", "f-shares", "f-note"].forEach(i =>
       document.getElementById(i).value = "");
     setMsg("", "");
-  });
-
-  panel("影子说明", () => {
-    document.getElementById("shadow-note").innerHTML = `
-      <h3 class="card-title">当前建议：影子模式</h3>
-      <p style="margin:0 0 10px">
-        主因子仍可能处于代理期，且回测显示需 50 只以上持仓才能实现该因子超额
-        （持仓 20 只时 t 仅 1.22，个股信噪比约 1:15）。
-        在此之前用影子记录积累数据，比用小资金试错更划算。
-      </p>
-      <div class="kv-list">
-        <div class="kv-row"><span class="kv-key">影子记录</span>
-          <span class="kv-val">进入统计与对照，不计入真实持仓与仓位</span></div>
-        <div class="kv-row"><span class="kv-key">真实成交</span>
-          <span class="kv-val">计入持仓监控，参与仓位与行业集中度计算</span></div>
-      </div>`;
-  });
-
-  panel("使用说明", () => {
-    document.getElementById("howto").innerHTML =
-      `<div class="kv-list">${HOWTO.map(h =>
-        `<div class="kv-row"><span class="kv-key">${esc(h[0])}</span>
-         <span class="kv-val dim">${esc(h[1])}</span></div>`).join("")}</div>`;
   });
 
   const data = await loadJson("position_log.json");
@@ -236,10 +187,6 @@ const HOWTO = [
 .form-msg { font-size:.9em; opacity:.8; }
 .form-msg.is-ok { color:var(--pos,#3d7a5a); }
 .form-msg.is-err { color:var(--neg,#b4483c); }
-.kv-row { display:flex; gap:12px; padding:4px 0; align-items:baseline; }
-.kv-key { opacity:.7; min-width:6em; flex-shrink:0; }
-.kv-val { flex:1; }
-.kv-val.dim { opacity:.7; font-size:.92em; }
 .tbl td.num, .tbl th.num { text-align:right; font-variant-numeric:tabular-nums; }
 .tbl td.dim { opacity:.65; font-size:.9em; }
 .table-wrap { overflow-x:auto; }
