@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light dark" />
+<title>双策略对照 · Trading Decision Terminal</title>
+<link rel="stylesheet" href="./terminal.css" />
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <h1 class="wordmark">Trading Decision Terminal
+      <span class="wordmark-sub">交易决策终端</span>
+    </h1>
+    <div class="stamp" id="stamp">读取中…</div>
+  </div>
+  <nav class="tabs" id="tabs" aria-label="页面导航"></nav>
+</header>
+
+<div class="diag" id="diag" hidden></div>
+
+<main>
+  <div class="page-head">
+    <h2 class="page-title">双策略对照</h2>
+    <p class="page-note">
+      两套逻辑各跑各的，只合并输出文件。方向相反：
+      左边买<strong>强势股</strong>（涨幅高、放量、近新高），
+      右边买<strong>冷门股</strong>（60日均成交额最低 20%）。
+      每天记录，三个月后用实盘数据判断谁对。
+    </p>
+  </div>
+
+  <section id="errors"></section>
+  <section class="grid cols-2" id="summary"></section>
+  <section id="alerts"></section>
+
+  <section class="section">
+    <div class="section-head">
+      <h3 class="section-title">今日选出</h3>
+      <span class="section-meta" id="pick-meta">—</span>
+    </div>
+    <div class="dual" id="dual"></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <h3 class="section-title">重合度</h3>
+      <span class="section-meta">重合越低，对照实验的区分度越高</span>
+    </div>
+    <div class="card" id="overlap"></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <h3 class="section-title">动量策略的筛选条件对照</h3>
+      <span class="section-meta">每条对应今天回测里的哪个数字</span>
+    </div>
+    <div class="card" id="audit"></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <h3 class="section-title">对照实验怎么读</h3>
+      <span class="section-meta">三个月后要比什么</span>
+    </div>
+    <div class="card" id="howto"></div>
+  </section>
+</main>
+
+<footer class="foot">个人自用工具，非投资建议。所有信号由量化规则生成，执行前请自行复核。</footer>
+
+<script src="./terminal.js"></script>
+<script>
+const DIFF = [
+  ["选股方向", "买强势：涨幅 2–7%、量比&gt;1.8、近 20 日新高", "买冷门：60日均成交额最低 20%"],
+  ["流动性偏好", "成交额 ≥ 2.5–5 亿", "成交额最低层（已剔除 &lt;500万）"],
+  ["持有期", "未明确，隐含短线", "60 个交易日，到期换仓"],
+  ["回测支撑", "无 —— 源码注明「参数未经历史回测验证」", "样本外 +160 bps / 60天，t = 5.24"],
+  ["市场评分作用", "决定目标只数与仓位系数", "仅记录，不做门槛"],
+];
+
+const HOWTO = [
+  ["记什么", "每天两边各自的名单与当日价格，之后回填 T+1 / T+3 / T+5 / T+20 / T+60 收益。两边都要记，缺一边就没有对照。"],
+  ["比什么", "同期的<strong>单笔平均净收益</strong>，不比累计收益率 —— 后者受选出只数和仓位影响，前者不受。"],
+  ["多久", "至少 60 个交易日。两边数量差异大，样本积累速度不同，别提前下结论。"],
+  ["可能结果", "动量组显著更好 → 回测在实盘环境下不成立（滑点/数据/市场结构变化）；低成交额组更好 → 与回测一致；无差异 → 两者都在噪声里。"],
+  ["注意", "三个月实盘样本远小于回测的 2112 个交易日。它推翻不了回测，只能提示「实盘和回测对不上」。"],
+];
+
+function n_(o, keys, d) {
+  if (!o) return d === undefined ? null : d;
+  for (const k of keys) {
+    const v = o[k];
+    if (typeof v === "number" && isFinite(v)) return v;
+  }
+  return d === undefined ? null : d;
+}
+function s_(o, keys, d) {
+  if (!o) return d || "";
+  for (const k of keys) {
+    const v = o[k];
+    if (v !== undefined && v !== null && v !== "") return String(v);
+  }
+  return d || "";
+}
+function row(label, val, digits, suffix, colorize) {
+  if (val === null || val === undefined) return "";
+  const cls = colorize ? (val > 0 ? "pos" : val < 0 ? "neg" : "") : "";
+  return `<div class="kv-row"><span class="kv-key">${label}</span>
+    <span class="kv-val num ${cls}">${fmt.num(val, digits)}${suffix || ""}</span></div>`;
+}
+
+function momCard(s) {
+  const flags = [];
+  if (s.ma_aligned === true) flags.push("均线多头");
+  if (s.volume_spike === true) flags.push("放量");
+  if (s.breakout === true) flags.push("近新高");
+  return `<div class="card mini">
+    <div class="stock-head">
+      <div><span class="stock-code">${esc(s_(s, ["代码"]))}</span>
+        <span class="stock-name">${esc(s_(s, ["名称"]))}</span></div>
+      ${n_(s, ["score"]) !== null ? `<span class="tag tag-muted">${fmt.num(s.score, 1)}</span>` : ""}
+    </div>
+    <div class="kv-list">
+      ${row("最新价", n_(s, ["最新价"]), 2)}
+      ${row("涨跌幅", n_(s, ["涨跌幅"]), 2, "%", true)}
+      ${row("预估换手", n_(s, ["预估全天换手率"]), 1, "%")}
+      ${row("量比", n_(s, ["量比"]), 2)}
+      ${row("振幅", n_(s, ["振幅"]), 2, "%")}
+      ${row("行业相对强度", n_(s, ["行业相对强度"]), 2, "%", true)}
+      ${n_(s, ["成交额"]) !== null ? `<div class="kv-row"><span class="kv-key">成交额</span>
+        <span class="kv-val num">${fmt.num(s["成交额"] / 1e8, 2)} 亿</span></div>` : ""}
+      ${s["行业"] && s["行业"] !== "未分类" ? `<div class="kv-row"><span class="kv-key">行业</span>
+        <span class="kv-val">${esc(s["行业"])}</span></div>` : ""}
+      ${row("建议仓位", n_(s, ["建议仓位"]), 1, "%")}
+      ${s["操作建议"] ? `<div class="kv-row"><span class="kv-key">标签</span>
+        <span class="kv-val">${esc(s["操作建议"])}</span></div>` : ""}
+    </div>
+    ${flags.length ? `<div class="tag-row">${flags.map(f =>
+      `<span class="tag tag-warn">${esc(f)}</span>`).join("")}</div>` : ""}
+  </div>`;
+}
+
+function lowCard(s) {
+  const exp = n_(s, ["expect_bps", "stock_score"], 0);
+  const worst = n_(s, ["n_worst"], 0);
+  const amt = n_(s, ["core_amt"]);
+  const mv = n_(s, ["mv"]);
+  return `<div class="card mini">
+    <div class="stock-head">
+      <div><span class="stock-code">${esc(s_(s, ["code"]))}</span>
+        <span class="stock-name">${esc(s_(s, ["name"]))}</span></div>
+      <span class="tag ${exp >= 76 ? "tag-ok" : "tag-warn"}">${exp > 0 ? "+" : ""}${fmt.num(exp, 0)} bps</span>
+    </div>
+    <div class="kv-list">
+      ${row("最新价", n_(s, ["close"]), 2)}
+      ${row("涨跌幅", n_(s, ["chg"]) !== null ? s.chg * 100 : null, 2, "%", true)}
+      ${amt !== null ? `<div class="kv-row"><span class="kv-key">60日均成交额</span>
+        <span class="kv-val num">${fmt.num(amt / 1e8, 3)} 亿</span></div>` : ""}
+      ${mv !== null ? `<div class="kv-row"><span class="kv-key">流通市值</span>
+        <span class="kv-val num">${fmt.num(mv / 1e8, 1)} 亿</span></div>` : ""}
+      ${row("换手率", n_(s, ["turn"]) !== null ? s.turn * 100 : null, 2, "%")}
+      ${row("20日涨幅", n_(s, ["ret20"]) !== null ? s.ret20 * 100 : null, 1, "%", true)}
+      ${s.sector && s.sector !== "未分类" ? `<div class="kv-row"><span class="kv-key">行业</span>
+        <span class="kv-val">${esc(s.sector)}</span></div>` : ""}
+      ${worst ? `<div class="kv-row"><span class="kv-key">极端档</span>
+        <span class="kv-val neg">${worst} 个变量落最差档</span></div>` : ""}
+    </div>
+  </div>`;
+}
+
+function alertBox(t, lv) {
+  return `<div class="card alert alert-${lv}"><p style="margin:0">${t}</p></div>`;
+}
+
+(async function () {
+  buildChrome("compare.html");
+  stampLastRun();
+
+  panel("说明", () => {
+    document.getElementById("howto").innerHTML = `
+      <h3 class="card-title">逻辑差异</h3>
+      <div class="table-wrap"><table class="tbl">
+        <thead><tr><th>维度</th><th>动量策略</th><th>低成交额策略</th></tr></thead>
+        <tbody>${DIFF.map(d =>
+          `<tr><td>${esc(d[0])}</td><td class="dim">${d[1]}</td><td>${d[2]}</td></tr>`
+        ).join("")}</tbody></table></div>
+      <h3 class="card-title" style="margin-top:18px">三个月后比什么</h3>
+      <div class="kv-list vertical">${HOWTO.map(h =>
+        `<div class="kv-row"><span class="kv-key">${esc(h[0])}</span>
+         <span class="kv-val dim">${h[1]}</span></div>`).join("")}</div>`;
+  });
+
+  const data = await loadJson("dual.json");
+
+  if (!data) {
+    document.getElementById("dual").innerHTML =
+      emptyState("尚无数据", "dual_strategy.py 运行后写入 site/data/dual.json");
+    return;
+  }
+
+  const A = data.momentum || {};
+  const B = data.low_turnover || {};
+  const mom = A.stocks || [];
+  const low = B.buy || [];
+  const bmeta = B.meta || {};
+  const fb = A.fallback_status || {};
+  const mk = data.market || {};
+  const ov = data.overlap || {};
+
+  panel("错误", () => {
+    const box = [];
+    if (A.error) box.push(alertBox(`动量策略运行失败：${esc(A.error)}`, "warn"));
+    if (B.error) box.push(alertBox(`低成交额策略运行失败：${esc(B.error)}`, "warn"));
+    document.getElementById("errors").innerHTML = box.join("");
+  });
+
+  panel("概览", () => {
+    document.getElementById("summary").innerHTML = `
+      <div class="card side-a">
+        <h3 class="card-title">动量策略 <span class="tag tag-warn">无回测支撑</span></h3>
+        <div class="big-num">${mom.length}<span class="unit"> 只</span></div>
+        <div class="kv-list">
+          <div class="kv-row"><span class="kv-key">市场状态</span>
+            <span class="kv-val">${esc(mk.market_status || "—")}${
+              mk.market_score !== undefined ? `（${fmt.num(mk.market_score, 1)}）` : ""}</span></div>
+          <div class="kv-row"><span class="kv-key">降级档位</span>
+            <span class="kv-val">Tier ${fb.used_tier ?? "—"} · ${esc(fb.tier_name || "—")}</span></div>
+          <div class="kv-row"><span class="kv-key">目标 / 实际</span>
+            <span class="kv-val num">${fb.target_count ?? "—"} / ${fb.actual_count ?? "—"}</span></div>
+        </div>
+      </div>
+      <div class="card side-b">
+        <h3 class="card-title">低成交额策略 <span class="tag tag-ok">样本外 t=5.24</span></h3>
+        <div class="big-num">${low.length}<span class="unit"> 只</span></div>
+        <div class="kv-list">
+          <div class="kv-row"><span class="kv-key">期望中位</span>
+            <span class="kv-val num">${bmeta.buy_median_expect_bps !== undefined
+              ? fmt.num(bmeta.buy_median_expect_bps, 0) + " bps" : "—"}</span></div>
+          <div class="kv-row"><span class="kv-key">主因子来源</span>
+            <span class="kv-val">${bmeta.amt_source === "rolling_60d"
+              ? `<span class="tag tag-ok">真实60日均额</span>`
+              : `<span class="tag tag-warn">当日成交额代理</span>`}</span></div>
+          <div class="kv-row"><span class="kv-key">缓存 / 候选池</span>
+            <span class="kv-val num">${bmeta.hist_days ?? "—"} 天 / ${bmeta.pool ?? "—"} 只</span></div>
+        </div>
+      </div>`;
+  });
+
+  panel("警示", () => {
+    const box = (bmeta.warnings || []).map(w => alertBox(esc(w), "warn"));
+    document.getElementById("alerts").innerHTML = box.join("");
+  });
+
+  panel("并排名单", () => {
+    document.getElementById("pick-meta").textContent =
+      `动量 ${mom.length} 只 · 低成交额 ${low.length} 只 · ${data.update_date || ""}`;
+    document.getElementById("dual").innerHTML = `
+      <div class="col">
+        <div class="col-head col-a">动量策略 · ${mom.length} 只</div>
+        ${mom.length ? mom.map(momCard).join("")
+          : emptyState("今日无选出", fb.fallback_note || "条件串联后候选清零")}
+      </div>
+      <div class="col">
+        <div class="col-head col-b">低成交额策略 · ${low.length} 只</div>
+        ${low.length ? low.map(lowCard).join("")
+          : emptyState("今日无选出", bmeta.warning || "所有标的被剔除或未达期望门槛")}
+      </div>`;
+  });
+
+  panel("重合度", () => {
+    document.getElementById("overlap").innerHTML = `
+      <div class="grid cols-3">
+        <div><div class="big-num">${ov.count ?? 0}<span class="unit"> 只</span></div>
+          <div class="kv-key">重合标的</div></div>
+        <div><div class="big-num">${fmt.num((ov.jaccard || 0) * 100, 1)}<span class="unit">%</span></div>
+          <div class="kv-key">Jaccard 相似度</div></div>
+        <div><div class="big-num">${ov.union ?? 0}<span class="unit"> 只</span></div>
+          <div class="kv-key">合计不重复</div></div>
+      </div>
+      ${(ov.codes || []).length ? `<div class="tag-row" style="margin-top:12px">
+        ${ov.codes.map(c => `<span class="tag tag-warn">${esc(c)}</span>`).join("")}</div>` : ""}
+      ${ov.note ? `<p class="page-note" style="margin-bottom:0">${esc(ov.note)}</p>` : ""}`;
+  });
+
+  panel("审计表", () => {
+    const audit = A.audit || [];
+    if (!audit.length) {
+      document.getElementById("audit").innerHTML =
+        emptyState("无审计数据", "dual.json 的 momentum.audit 字段为空");
+      return;
+    }
+    const cls = v => v === "一致" ? "pos" : v === "相反" ? "neg" : "";
+    document.getElementById("audit").innerHTML = `
+      <div class="table-wrap"><table class="tbl">
+        <thead><tr><th>筛选条件</th><th>今日实测对照</th><th>方向</th></tr></thead>
+        <tbody>${audit.map(a =>
+          `<tr><td>${esc(a[0])}</td><td class="dim">${esc(a[1])}</td>
+           <td class="${cls(a[2])}"><span class="tag tag-${
+             a[2] === "一致" ? "ok" : "warn"}">${esc(a[2])}</span></td></tr>`
+        ).join("")}</tbody></table></div>
+      <p class="page-note">
+        方向相反不等于该逻辑一定亏钱 —— 实测是横截面分档的平均效应，
+        而这套逻辑是多条件串联后的小样本，两者不能直接互推。
+        <strong>这正是要跑对照实验的原因。</strong>
+      </p>
+      ${(data.compare_note || []).map(n =>
+        `<p class="page-note" style="margin-bottom:0">· ${esc(n)}</p>`).join("")}`;
+  });
+})();
+</script>
+
+<style>
+.dual { display:grid; grid-template-columns:1fr 1fr; gap:14px; align-items:start; }
+@media (max-width:760px){ .dual { grid-template-columns:1fr; } }
+.col-head { font-weight:600; padding:8px 12px; margin-bottom:10px; border-radius:6px; font-size:.92em; }
+.col-a { background:color-mix(in srgb, var(--warn,#b8862a) 14%, transparent);
+  border-left:3px solid var(--warn,#b8862a); }
+.col-b { background:color-mix(in srgb, var(--accent,#3d7a5a) 14%, transparent);
+  border-left:3px solid var(--accent,#3d7a5a); }
+.side-a { border-top:3px solid var(--warn,#b8862a); }
+.side-b { border-top:3px solid var(--accent,#3d7a5a); }
+.card.mini { padding:12px 14px; margin-bottom:10px; }
+.big-num { font-size:2rem; font-variant-numeric:tabular-nums; line-height:1.1; }
+.big-num .unit { font-size:.9rem; opacity:.6; margin-left:2px; }
+.stock-head { display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:8px; }
+.stock-code { font-variant-numeric:tabular-nums; font-weight:600; }
+.stock-name { margin-left:6px; opacity:.75; }
+.tag-row { margin-top:8px; display:flex; flex-wrap:wrap; gap:5px; }
+.alert { border-left:3px solid var(--warn,#b8862a); }
+.kv-row { display:flex; justify-content:space-between; gap:10px; padding:2px 0; align-items:baseline; }
+.kv-list.vertical .kv-row { flex-direction:column; align-items:flex-start; gap:2px; }
+.kv-key { opacity:.7; flex-shrink:0; font-size:.9em; }
+.kv-val { text-align:right; }
+.kv-val.num { font-variant-numeric:tabular-nums; }
+.kv-val.pos { color:var(--pos,#3d7a5a); }
+.kv-val.neg { color:var(--neg,#b4483c); }
+.kv-val.dim { opacity:.75; font-size:.92em; text-align:left; }
+.tbl td.dim { opacity:.7; font-size:.92em; }
+.tbl td.pos { color:var(--pos,#3d7a5a); }
+.tbl td.neg { color:var(--neg,#b4483c); }
+.table-wrap { overflow-x:auto; }
+</style>
+</body>
+</html>
