@@ -11,8 +11,8 @@
     },
     "leader_strength": 1.0,
     "persistence": 0.5,
-    "leader_name": "万兴科技",
-    "leader_code": "sz300624"
+    "leader_name": "福昕软件",
+    "leader_code": "sh688095"
   },
   {
     "sector": "IT服务",
@@ -30,27 +30,12 @@
     "leader_code": "bj920130"
   },
   {
-    "sector": "通信设备",
-    "score": 80.5,
-    "detail": {
-      "资金净流入": 28.67,
-      "近5日涨幅": 12.5,
-      "板块涨跌家数比": 19.33,
-      "龙头强度": 15.0,
-      "持续性": 5.0
-    },
-    "leader_strength": 1.0,
-    "persistence": 0.5,
-    "leader_name": "长芯博创",
-    "leader_code": "sz300548"
-  },
-  {
     "sector": "文化传媒",
-    "score": 79.91,
+    "score": 80.4,
     "detail": {
       "资金净流入": 29.33,
       "近5日涨幅": 12.5,
-      "板块涨跌家数比": 18.07,
+      "板块涨跌家数比": 18.57,
       "龙头强度": 15.0,
       "持续性": 5.0
     },
@@ -60,18 +45,33 @@
     "leader_code": "bj920021"
   },
   {
-    "sector": "通用设备",
-    "score": 79.64,
+    "sector": "通信设备",
+    "score": 80.39,
     "detail": {
       "资金净流入": 28.33,
       "近5日涨幅": 12.5,
-      "板块涨跌家数比": 18.81,
+      "板块涨跌家数比": 19.56,
       "龙头强度": 15.0,
       "持续性": 5.0
     },
     "leader_strength": 1.0,
     "persistence": 0.5,
-    "leader_name": "欣兴工具",
-    "leader_code": null
+    "leader_name": "长芯博创",
+    "leader_code": "sz300548"
+  },
+  {
+    "sector": "通用设备",
+    "score": 80.13,
+    "detail": {
+      "资金净流入": 28.67,
+      "近5日涨幅": 12.5,
+      "板块涨跌家数比": 18.97,
+      "龙头强度": 15.0,
+      "持续性": 5.0
+    },
+    "leader_strength": 1.0,
+    "persistence": 0.5,
+    "leader_name": "海川智能",
+    "leader_code": "sz300720"
   }
 ]
