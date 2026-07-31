@@ -24,29 +24,43 @@
 <main>
   <div class="page-head">
     <h2 class="page-title">信号与风险</h2>
-    <p class="page-note">三重门槛全部满足才生成买入信号：市场评分 ≥ 70、个股评分 ≥ 85、且出现标准进场形态。</p>
+    <p class="page-note">
+      两个池子互不混用：<strong>建仓候选</strong>按实测期望值排序；
+      <strong>爆发观察</strong>是大涨启动率高但期望为负的高波动票，只记录不建仓。
+    </p>
   </div>
+
+  <section id="alerts"></section>
+
   <section class="section">
     <div class="section-head">
-      <h3 class="section-title">买入信号</h3>
-      <span class="section-meta">突破 / 回踩低吸 / 龙头反包</span>
+      <h3 class="section-title">建仓候选</h3>
+      <span class="section-meta" id="buy-meta">—</span>
     </div>
-    <div id="signals"></div>
+    <div id="buy-list"></div>
   </section>
 
   <section class="section">
     <div class="section-head">
-      <h3 class="section-title">风险预警</h3>
-      <span class="section-meta">硬性规则触发即不可突破</span>
+      <h3 class="section-title">爆发观察 · 不建仓</h3>
+      <span class="section-meta" id="watch-meta">—</span>
     </div>
-    <div id="risks"></div>
+    <div class="card" style="margin-bottom:12px">
+      <p class="page-note" style="margin:0">
+        这组的大涨启动率是基准的 4–6 倍，但三日实际期望 −10 ~ −19 bps ——
+        因为它们跌超 10% 的概率同样是 4–6 倍。共性是「会动」，不是「会涨」。
+        仅用于积累样本，不参与建仓。
+      </p>
+    </div>
+    <div id="watch-list"></div>
   </section>
 
   <section class="section">
     <div class="section-head">
-      <h3 class="section-title">不可突破的纪律</h3>
+      <h3 class="section-title">期望分权重表</h3>
+      <span class="section-meta">权重即实测值，非主观设定</span>
     </div>
-    <div class="card" id="rules"></div>
+    <div class="card" id="weight-table"></div>
   </section>
 </main>
 
@@ -54,73 +68,192 @@
 
 <script src="./terminal.js"></script>
 <script>
+// 各变量五分档的三日实际平均收益（bps）。全样本基准 +7。
+const EXPECT_BPS = {
+  "流通市值":     [21, 11,  5,  2,  -1],
+  "均价偏离度":   [ 2, 16, 16, 11,  -8],
+  "换手率":       [11, 15, 15, 15, -19],
+  "距60日低点":   [ 3, 15, 16, 13, -10],
+  "20日波动率":   [11, 14, 14,  9, -10],
+  "当日振幅":     [12, 13, 14, 12, -14],
+  "20日涨幅":     [ 8, 12, 14, 13, -10],
+  "当日量能":     [11, 12, 14, 11, -11],
+  "60日涨幅":     [14, 13, 11,  9,  -9],
+};
+
+const VAR_ZH = {
+  mv: "流通市值", vdev: "均价偏离度", turn: "换手率", dist_lo60: "距60日低点",
+  vol20: "20日波动率", amp: "当日振幅", ret20: "20日涨幅",
+  vspike: "当日量能", ret60: "60日涨幅",
+};
+
+function pickNum(o, keys, d) {
+  for (const k of keys) {
+    const v = o[k];
+    if (typeof v === "number" && isFinite(v)) return v;
+  }
+  return d;
+}
+
+function quintileBar(q) {
+  if (q === null || q === undefined) return "";
+  let s = "";
+  for (let i = 0; i < 5; i++) {
+    s += `<span class="q-dot${i === Number(q) ? (i === 4 ? " is-worst" : " is-on") : ""}"></span>`;
+  }
+  return `<span class="q-bar">${s}</span>`;
+}
+
+function stockCard(s, kind) {
+  const code = esc(s.code || "");
+  const name = esc(s.name || "");
+  const exp = pickNum(s, ["expect_bps", "stock_score", "score"], 0);
+  const lift = pickNum(s, ["launch_lift"], 1);
+  const worst = pickNum(s, ["n_worst"], 0);
+  const q = s.quintiles || {};
+
+  const qrows = Object.keys(q).map(k =>
+    `<div class="kv-row">
+       <span class="kv-key">${esc(VAR_ZH[k] || k)}</span>
+       <span class="kv-val">${quintileBar(q[k])}
+         <span class="q-bps">${(EXPECT_BPS[VAR_ZH[k]] || [])[Number(q[k])] ?? ""} bps</span>
+       </span>
+     </div>`).join("");
+
+  const pats = (s.patterns || s.matched_patterns || []);
+  const patHtml = pats.length
+    ? `<div class="tag-row">${pats.map(p => `<span class="tag tag-muted">${esc(p)}</span>`).join("")}</div>`
+    : "";
+
+  const badge = kind === "buy"
+    ? `<span class="tag ${exp >= 76 ? "tag-ok" : "tag-warn"}">期望 ${exp > 0 ? "+" : ""}${fmt.num(exp, 0)} bps</span>`
+    : `<span class="tag tag-warn">启动富集 ${fmt.num(lift, 2)}×</span>`;
+
+  return `<div class="card stock-card">
+    <div class="stock-head">
+      <div>
+        <span class="stock-code">${code}</span>
+        <span class="stock-name">${name}</span>
+      </div>
+      ${badge}
+    </div>
+    <div class="kv-list">
+      ${qrows}
+      ${worst > 0 ? `<div class="kv-row"><span class="kv-key">极端档</span><span class="kv-val neg">${worst} 个变量落在最差档</span></div>` : ""}
+    </div>
+    ${patHtml}
+  </div>`;
+}
+
+function weightTable() {
+  const head = `<tr><th>变量</th><th class="num">档0</th><th class="num">档1</th>
+    <th class="num">档2</th><th class="num">档3</th><th class="num">档4</th><th>形态</th></tr>`;
+  const rows = Object.keys(EXPECT_BPS).map(k => {
+    const v = EXPECT_BPS[k];
+    const mono = k === "流通市值" ? "单调递减" : "最高档为负";
+    return `<tr><td>${esc(k)}</td>` +
+      v.map(x => `<td class="num ${x > 0 ? "pos" : "neg"}">${x > 0 ? "+" : ""}${x}</td>`).join("") +
+      `<td>${mono}</td></tr>`;
+  }).join("");
+  return `<p class="page-note" style="margin-top:0">
+      表中每个数字都是该分档在 122 万个股票-日样本上的三日实际平均收益，
+      全样本基准 +7 bps。期望分 = 各变量所在分档的 bps 之和 —— 不含任何主观权重。
+      规律：最高档一律为负；最优区间集中在档 1–2；只有流通市值单调。
+    </p>
+    <div class="table-wrap"><table class="tbl"><thead>${head}</thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function alertBox(text, level) {
+  return `<div class="card alert alert-${level}"><p style="margin:0">${text}</p></div>`;
+}
+
 (async function () {
   buildChrome("signals.html");
   stampLastRun();
 
-  const [signals, risk] = await Promise.all([
-    loadJson("signals.json", []),
-    loadJson("risk_status.json"),
-  ]);
-
-  panel("买入信号", () => {
-    const el = document.getElementById("signals");
-    if (!signals || !signals.length) {
-      el.innerHTML = emptyState("今日无买入信号",
-        "三重门槛未同时满足。无安全机会时空仓等待，属策略的正常状态");
-      return;
-    }
-    el.innerHTML = signals.map(s => `<div class="signal">
-      <div class="signal-head">
-        <span class="signal-code">${esc(fmt.code(s.code))}</span>
-        <span class="chip">${esc(s.sector || "—")}</span>
-        <span class="signal-score">个股评分 ${fmt.num(s.stock_score, 1)}</span>
-      </div>
-      <div>${(s.matched_patterns || []).map(p => `<span class="chip">${esc(p)}</span>`).join("") || "—"}</div>
-    </div>`).join("");
+  panel("权重表", () => {
+    document.getElementById("weight-table").innerHTML = weightTable();
   });
 
-  panel("风险预警", () => {
-    const el = document.getElementById("risks");
-    if (!risk) {
-      el.innerHTML = emptyState("暂无风控数据", "定时任务运行后自动填充");
-      return;
-    }
-    const items = [];
-    if (risk.halt_new_positions) {
-      items.push({ critical: true, text: "当日回撤已触及上限，今日停止所有新开仓操作。" });
-    }
-    (risk.stock_hard_stoploss_alerts || []).forEach(a => {
-      items.push({ critical: true,
-        text: `${fmt.code(a.code)} 亏损已达账户总资金的 ${fmt.pct(a.loss_ratio_of_total_capital)}，触发单笔硬止损：禁止加仓，择机离场。` });
-    });
-    const wk = risk.weekly_drawdown_check;
-    if (wk && wk.triggered) {
-      items.push({ critical: false,
-        text: `本周累计回撤 ${fmt.pct(wk.drawdown)}，超过 6% 上限，次周总仓位需压降至 ${fmt.pct(risk.position_cap_override, 0)} 以内。` });
-    }
-    const dd = risk.daily_drawdown_check;
-    if (dd && !dd.triggered && dd.drawdown > 0) {
-      items.push({ critical: false, text: `当日回撤 ${fmt.pct(dd.drawdown)}，未触及 4% 停手线。` });
-    }
+  const raw = await loadJson("signals.json");
 
-    el.innerHTML = items.length
-      ? items.map(i => `<div class="alert${i.critical ? " is-critical" : ""}">
-          <div class="alert-mark"></div><div>${esc(i.text)}</div></div>`).join("")
-      : emptyState("当前无风险预警", "账户回撤、单票止损均在阈值以内");
+  if (!raw) {
+    document.getElementById("buy-list").innerHTML =
+      emptyState("尚无信号", "等定时任务运行完成后，这里会显示当日候选");
+    document.getElementById("watch-list").innerHTML = "";
+    return;
+  }
+
+  // 结构归一化：可能是 list，也可能是 {buy, launch_watch, meta}
+  let buy = [], watch = [], meta = {};
+  if (Array.isArray(raw)) {
+    buy = raw;
+  } else {
+    buy = raw.buy || raw.signals || [];
+    watch = raw.launch_watch || raw.watch || [];
+    meta = raw.meta || {};
+  }
+
+  panel("警示", () => {
+    const box = [];
+    const warns = meta.warnings || [];
+    if (buy.length && buy.length < 30) {
+      box.push(alertBox(
+        `建仓候选仅 <strong>${buy.length}</strong> 只，低于该因子生效所需的分散度。
+         回测显示持仓 20 只时 t 仅 1.22，个股信噪比约 1:15 ——
+         这个数量下拿到的结果基本是运气。`, "warn"));
+    }
+    if (meta.bootstrapping || meta.amt_source === "today_proxy") {
+      box.push(alertBox(
+        `主因子当前使用<strong>当日成交额代理 60 日均额</strong>。
+         通过样本外验证的是后者，不是前者。滚动缓存满 60 个交易日后自动切换。`, "warn"));
+    }
+    const med = pickNum(meta, ["buy_median_expect_bps"], null);
+    if (med !== null && med < 76) {
+      box.push(alertBox(
+        `候选期望中位 ${fmt.num(med, 0)} bps，低于小资金往返成本 76 bps
+         （单票 2000 元）。三日持有下不足以覆盖成本，本页应作为过滤与排序使用。`, "warn"));
+    }
+    warns.forEach(w => box.push(alertBox(esc(w), "muted")));
+    document.getElementById("alerts").innerHTML = box.join("");
   });
 
-  panel("纪律清单", () => {
-    const fallback = [
-      "禁止对亏损持仓摊薄成本",
-      "禁止在防守模式下强行交易",
-      "禁止在高位抱团股上重仓博弈",
-    ];
-    const list = (risk && risk.forbidden_behavior_reminders) || fallback;
-    document.getElementById("rules").innerHTML =
-      list.map(r => `<div class="alert"><div class="alert-mark" style="background:var(--ink-faint)"></div><div>${esc(r)}</div></div>`).join("");
+  panel("建仓候选", () => {
+    document.getElementById("buy-meta").textContent =
+      buy.length ? `${buy.length} 只 · 按实测期望排序` : "无";
+    document.getElementById("buy-list").innerHTML = buy.length
+      ? `<div class="grid cols-2">${buy.map(s => stockCard(s, "buy")).join("")}</div>`
+      : emptyState("今日无建仓候选", "所有标的都被硬性剔除或未达期望门槛");
+  });
+
+  panel("爆发观察", () => {
+    document.getElementById("watch-meta").textContent =
+      watch.length ? `${watch.length} 只 · 仅记录` : "无";
+    document.getElementById("watch-list").innerHTML = watch.length
+      ? `<div class="grid cols-2">${watch.map(s => stockCard(s, "watch")).join("")}</div>`
+      : emptyState("今日无爆发观察标的", "");
   });
 })();
 </script>
+
+<style>
+.q-bar { display:inline-flex; gap:3px; vertical-align:middle; }
+.q-dot { width:14px; height:6px; border-radius:3px; background:var(--rule,#d8d4cc); display:inline-block; }
+.q-dot.is-on { background:var(--accent,#3d7a5a); }
+.q-dot.is-worst { background:var(--neg,#b4483c); }
+.q-bps { margin-left:8px; font-variant-numeric:tabular-nums; opacity:.65; font-size:.85em; }
+.stock-card .stock-head { display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:10px; }
+.stock-code { font-variant-numeric:tabular-nums; font-weight:600; }
+.stock-name { margin-left:8px; opacity:.75; }
+.tag-row { margin-top:10px; display:flex; flex-wrap:wrap; gap:6px; }
+.alert { border-left:3px solid var(--warn,#b8862a); }
+.alert-muted { border-left-color:var(--rule,#d8d4cc); opacity:.85; }
+.tbl td.num, .tbl th.num { text-align:right; font-variant-numeric:tabular-nums; }
+.tbl td.pos { color:var(--pos,#3d7a5a); }
+.tbl td.neg { color:var(--neg,#b4483c); }
+.kv-row { display:flex; justify-content:space-between; gap:12px; padding:3px 0; }
+.kv-key { opacity:.7; }
+.table-wrap { overflow-x:auto; }
+</style>
 </body>
 </html>
