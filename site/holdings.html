@@ -24,20 +24,10 @@
 <main>
   <div class="page-head">
     <h2 class="page-title">持仓监控</h2>
-    <p class="page-note">
-      主策略为<strong>持有 60 个交易日到期换仓</strong>，期间不止盈不止损不换股。
-      下方「明日处理」写的是系统会怎么做，不是浮盈浮亏。
-    </p>
+    <p class="page-note">持有 60 个交易日到期换仓。「明日处理」是系统会怎么做，不是浮盈浮亏。</p>
   </div>
 
-  <section class="section">
-    <div class="section-head">
-      <h3 class="section-title">组合概览</h3>
-      <span class="section-meta" id="ov-meta">—</span>
-    </div>
-    <div class="grid cols-3" id="overview"></div>
-  </section>
-
+  <section class="grid cols-3" id="overview"></section>
   <section id="alerts"></section>
 
   <section class="section">
@@ -47,14 +37,6 @@
     </div>
     <div id="holdings"></div>
   </section>
-
-  <section class="section">
-    <div class="section-head">
-      <h3 class="section-title">卖出规则</h3>
-      <span class="section-meta">按优先级，命中即执行</span>
-    </div>
-    <div class="card" id="rules"></div>
-  </section>
 </main>
 
 <footer class="foot">个人自用工具，非投资建议。所有信号由量化规则生成，执行前请自行复核。</footer>
@@ -63,48 +45,32 @@
 <script>
 const HOLD_DAYS = 60;
 
-const RULES = [
-  ["1", "退市 / ST 披星", "立即清仓，不等信号。样本内 197 只退市股实测：不排除时策略 −788 bps", "neg"],
-  ["2", "持满 60 个交易日", "到期全部卖出，重新选一批。持有期单调性 20→40→60 日：68→115→160 bps", "ok"],
-  ["3", "成交额跌破 60 日均值 50%", "流动性衰竭，接近退市高危区，提前撤出", "warn"],
-  ["4", "组合回撤触发熔断", "暂停开新仓 20 个交易日后自动恢复（熔断必须是时间性的，"
-      + "旧版按净值恢复会导致永久停机）", "warn"],
-];
-
-const NO_RULES = [
-  ["止盈", "60 日持有期内不止盈 —— 因子超额来自持满整个周期，提前落袋会截断收益"],
-  ["止损", "同上。且低成交额股票短期波动大，止损会被随机噪声频繁触发"],
-  ["换股", "中途不换。每 15 个交易日开一批新的，4 个梯队滚动"],
-];
-
-function pickNum(o, keys, d) {
+function n_(o, keys, d) {
+  if (!o) return d === undefined ? null : d;
   for (const k of keys) {
     const v = o[k];
     if (typeof v === "number" && isFinite(v)) return v;
   }
-  return d;
+  return d === undefined ? null : d;
 }
 
 function holdCard(h) {
-  const code = esc(h.code || "");
-  const name = esc(h.name || "");
-  const days = pickNum(h, ["holding_days", "持有天数"], 0);
+  const days = n_(h, ["holding_days", "持有天数"], 0) || 0;
   const left = Math.max(0, HOLD_DAYS - days);
-  const cost = pickNum(h, ["cost_price", "avg_cost", "成本价"], null);
-  const price = pickNum(h, ["last_price", "close", "现价"], null);
-  const pnl = (cost && price) ? (price / cost - 1) : pickNum(h, ["pnl_pct", "浮动盈亏"], null);
-  const shares = pickNum(h, ["shares", "持股数"], null);
+  const cost = n_(h, ["cost_price", "avg_cost", "成本价"]);
+  const price = n_(h, ["last_price", "close", "现价"]);
+  const pnl = (cost && price) ? (price / cost - 1) : n_(h, ["pnl_pct"]);
+  const shares = n_(h, ["shares", "持股数"]);
 
   let action = h.next_action || h.pending_exit;
   if (!action) action = left <= 0 ? "到期卖出" : `继续持有（剩 ${left} 个交易日）`;
   const urgent = left <= 3 || /卖出|清仓/.test(action);
-
   const pnlCls = pnl === null ? "" : (pnl > 0 ? "pos" : pnl < 0 ? "neg" : "");
 
   return `<div class="card">
     <div class="stock-head">
-      <div><span class="stock-code">${code}</span>
-        <span class="stock-name">${name}</span></div>
+      <div><span class="stock-code">${esc(String(h.code || ""))}</span>
+        <span class="stock-name">${esc(String(h.name || ""))}</span></div>
       <span class="tag ${urgent ? "tag-warn" : "tag-muted"}">${esc(action)}</span>
     </div>
     ${meter("持有进度", days, HOLD_DAYS, `${days} / ${HOLD_DAYS} 个交易日`)}
@@ -117,77 +83,58 @@ function holdCard(h) {
         <span class="kv-val num ${pnlCls}">${pnl > 0 ? "+" : ""}${fmt.num(pnl * 100, 2)}%</span></div>` : ""}
       ${shares !== null ? `<div class="kv-row"><span class="kv-key">持股</span>
         <span class="kv-val num">${fmt.num(shares, 0)}</span></div>` : ""}
-      ${h.sector ? `<div class="kv-row"><span class="kv-key">行业</span>
+      ${h.sector && h.sector !== "未分类" ? `<div class="kv-row"><span class="kv-key">行业</span>
         <span class="kv-val">${esc(h.sector)}</span></div>` : ""}
     </div>
   </div>`;
 }
 
-function alertBox(t, lv) {
-  return `<div class="card alert alert-${lv}"><p style="margin:0">${t}</p></div>`;
+function alertBox(t) {
+  return `<div class="card alert"><p style="margin:0">${t}</p></div>`;
 }
 
 (async function () {
   buildChrome("holdings.html");
   stampLastRun();
 
-  panel("卖出规则", () => {
-    const rows = RULES.map(r =>
-      `<tr><td class="num">${r[0]}</td><td>${esc(r[1])}</td>
-       <td class="dim">${esc(r[2])}</td>
-       <td><span class="tag tag-${r[3] === "ok" ? "ok" : r[3] === "neg" ? "warn" : "muted"}">
-         ${r[3] === "ok" ? "常规" : "触发式"}</span></td></tr>`).join("");
-    const no = NO_RULES.map(n =>
-      `<div class="kv-row"><span class="kv-key">不做${esc(n[0])}</span>
-       <span class="kv-val dim">${esc(n[1])}</span></div>`).join("");
-    document.getElementById("rules").innerHTML = `
-      <div class="table-wrap"><table class="tbl">
-        <thead><tr><th class="num">序</th><th>条件</th><th>说明</th><th>类型</th></tr></thead>
-        <tbody>${rows}</tbody></table></div>
-      <h3 class="card-title" style="margin-top:16px">刻意不做的三件事</h3>
-      <div class="kv-list">${no}</div>`;
-  });
-
   const data = await loadJson("positions.json");
   const list = Array.isArray(data) ? data
     : (data && (data.holdings || data.positions)) || [];
   const meta = (data && data.meta) || {};
 
-  panel("组合概览", () => {
+  panel("概览", () => {
     const n = list.length;
     const totalPct = list.reduce((a, h) =>
-      a + (pickNum(h, ["position_pct", "weight", "仓位"], 0) || 0), 0);
+      a + (n_(h, ["position_pct", "weight", "仓位"], 0) || 0), 0);
     const avgDays = n ? list.reduce((a, h) =>
-      a + pickNum(h, ["holding_days", "持有天数"], 0), 0) / n : 0;
+      a + (n_(h, ["holding_days", "持有天数"], 0) || 0), 0) / n : 0;
     const cards = [
-      ["持仓只数", n, n && n < 30 ? "warn" : "ok"],
-      ["合计仓位", n ? fmt.num(totalPct, 1) + "%" : "—", "ok"],
-      ["平均持有", n ? fmt.num(avgDays, 0) + " 日" : "—", "ok"],
+      ["持仓只数", n],
+      ["合计仓位", n ? fmt.num(totalPct, 1) + "%" : "—"],
+      ["平均持有", n ? fmt.num(avgDays, 0) + " 日" : "—"],
     ];
-    document.getElementById("ov-meta").textContent = n ? `${n} 只` : "空仓";
     document.getElementById("overview").innerHTML = cards.map(c =>
       `<div class="card"><h3 class="card-title">${esc(c[0])}</h3>
-       <div class="score-value" style="font-size:1.7rem">${c[1]}</div></div>`).join("");
+       <div class="big-num">${typeof c[1] === "number" ? c[1] : esc(String(c[1]))}</div>
+      </div>`).join("");
   });
 
   panel("警示", () => {
     const box = [];
     if (list.length && list.length < 30) {
       box.push(alertBox(
-        `当前持仓 <strong>${list.length}</strong> 只，低于该因子生效所需的 50 只。
-         超额来自整层约 250 只股票的平均效应，个股信噪比约 1:15 ——
-         这个数量下的结果基本是运气。完整回测：持仓 20 只时 t 仅 1.22。`, "warn"));
+        `当前持仓 <strong>${list.length}</strong> 只，分散度不足。
+         该策略的超额来自整层股票的平均效应，需 50 只以上持仓才能实现。`));
     }
     if (meta.amt_source === "today_proxy" || meta.bootstrapping) {
       box.push(alertBox(
-        `主因子仍在<strong>代理模式</strong>（当日成交额代理 60 日均额）。
-         通过样本外验证的是后者。建议这段时间只做影子记录，不投真钱。`, "warn"));
+        `主因子仍在代理模式（当日成交额代理 60 日均额），
+         建议此期间只做记录，不投真钱。`));
     }
     if (!list.length) {
       box.push(alertBox(
-        `当前空仓。若这是首次运行，建议先<strong>空跑三个月</strong>：
-         让系统每天出信号、记录、不下单。等滚动缓存满 60 天、主因子切到真实值，
-         同时你也积累了信号质量数据，那时候再考虑执行。`, "muted"));
+        `当前空仓。首次运行建议先空跑三个月：每天出信号、记录、不下单，
+         等滚动缓存满 60 天、主因子切到真实值再考虑执行。`));
     }
     document.getElementById("alerts").innerHTML = box.join("");
   });
@@ -203,19 +150,17 @@ function alertBox(t, lv) {
 </script>
 
 <style>
+.big-num { font-size:1.9rem; font-variant-numeric:tabular-nums; line-height:1.15; }
 .stock-head { display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:10px; }
 .stock-code { font-variant-numeric:tabular-nums; font-weight:600; }
-.stock-name { margin-left:8px; opacity:.75; }
-.kv-row { display:flex; justify-content:space-between; gap:12px; padding:3px 0; }
-.kv-key { opacity:.7; }
+.stock-name { margin-left:8px; opacity:.8; }
+.kv-row { display:flex; justify-content:space-between; gap:12px; padding:3px 0; align-items:baseline; }
+.kv-key { opacity:.7; flex-shrink:0; font-size:.92em; }
+.kv-val { text-align:right; }
 .kv-val.num { font-variant-numeric:tabular-nums; }
 .kv-val.pos { color:var(--pos,#3d7a5a); }
 .kv-val.neg { color:var(--neg,#b4483c); }
 .alert { border-left:3px solid var(--warn,#b8862a); }
-.alert-muted { border-left-color:var(--rule,#d8d4cc); opacity:.85; }
-.tbl td.num, .tbl th.num { text-align:right; font-variant-numeric:tabular-nums; }
-.tbl td.dim, .kv-val.dim { opacity:.65; font-size:.92em; }
-.table-wrap { overflow-x:auto; }
 </style>
 </body>
 </html>
