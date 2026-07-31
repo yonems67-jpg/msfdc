@@ -1,65 +1,5 @@
 [
   {
-    "sector": "旅游及酒店",
-    "score": 71.98,
-    "detail": {
-      "资金净流入": 24.33,
-      "近5日涨幅": 12.5,
-      "板块涨跌家数比": 15.15,
-      "龙头强度": 15.0,
-      "持续性": 5.0
-    },
-    "leader_strength": 1.0,
-    "persistence": 0.5,
-    "leader_name": "西安饮食",
-    "leader_code": "sz000721"
-  },
-  {
-    "sector": "油气开采及服务",
-    "score": 70.83,
-    "detail": {
-      "资金净流入": 21.67,
-      "近5日涨幅": 12.5,
-      "板块涨跌家数比": 16.67,
-      "龙头强度": 15.0,
-      "持续性": 5.0
-    },
-    "leader_strength": 1.0,
-    "persistence": 0.5,
-    "leader_name": "科力股份",
-    "leader_code": "bj920088"
-  },
-  {
-    "sector": "零售",
-    "score": 70.38,
-    "detail": {
-      "资金净流入": 26.67,
-      "近5日涨幅": 12.5,
-      "板块涨跌家数比": 11.21,
-      "龙头强度": 15.0,
-      "持续性": 5.0
-    },
-    "leader_strength": 1.0,
-    "persistence": 0.5,
-    "leader_name": "南宁百货",
-    "leader_code": "sh600712"
-  },
-  {
-    "sector": "食品加工制造",
-    "score": 69.29,
-    "detail": {
-      "资金净流入": 23.67,
-      "近5日涨幅": 12.5,
-      "板块涨跌家数比": 13.12,
-      "龙头强度": 15.0,
-      "持续性": 5.0
-    },
-    "leader_strength": 1.0,
-    "persistence": 0.5,
-    "leader_name": "海欣食品",
-    "leader_code": "sz002702"
-  },
-  {
     "sector": "软件开发",
     "score": 68.74,
     "detail": {
@@ -71,7 +11,67 @@
     },
     "leader_strength": 1.0,
     "persistence": 0.5,
-    "leader_name": "普联软件",
-    "leader_code": "sz300996"
+    "leader_name": "索辰科技",
+    "leader_code": "sh688507"
+  },
+  {
+    "sector": "化学制品",
+    "score": 66.51,
+    "detail": {
+      "资金净流入": 28.67,
+      "近5日涨幅": 12.5,
+      "板块涨跌家数比": 5.34,
+      "龙头强度": 15.0,
+      "持续性": 5.0
+    },
+    "leader_strength": 1.0,
+    "persistence": 0.5,
+    "leader_name": "凌玮科技",
+    "leader_code": "sz301373"
+  },
+  {
+    "sector": "计算机设备",
+    "score": 65.7,
+    "detail": {
+      "资金净流入": 29.0,
+      "近5日涨幅": 12.5,
+      "板块涨跌家数比": 4.2,
+      "龙头强度": 15.0,
+      "持续性": 5.0
+    },
+    "leader_strength": 1.0,
+    "persistence": 0.5,
+    "leader_name": "协创数据",
+    "leader_code": "sz300857"
+  },
+  {
+    "sector": "消费电子",
+    "score": 64.54,
+    "detail": {
+      "资金净流入": 29.33,
+      "近5日涨幅": 12.5,
+      "板块涨跌家数比": 2.71,
+      "龙头强度": 15.0,
+      "持续性": 5.0
+    },
+    "leader_strength": 1.0,
+    "persistence": 0.5,
+    "leader_name": "胜蓝股份",
+    "leader_code": "sz300843"
+  },
+  {
+    "sector": "医疗器械",
+    "score": 64.16,
+    "detail": {
+      "资金净流入": 24.67,
+      "近5日涨幅": 12.5,
+      "板块涨跌家数比": 8.06,
+      "龙头强度": 13.93,
+      "持续性": 5.0
+    },
+    "leader_strength": 0.929,
+    "persistence": 0.5,
+    "leader_name": "奕瑞科技",
+    "leader_code": "sh688301"
   }
 ]
