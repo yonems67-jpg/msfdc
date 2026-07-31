@@ -1,5 +1,5 @@
 {
-  "total_score": 56.0,
+  "total_score": 59.0,
   "mode": "谨慎模式",
   "position_cap_range": [
     0.2,
@@ -7,9 +7,9 @@
   ],
   "breakdown": {
     "指数趋势": {
-      "score": 0.0,
+      "score": 3.0,
       "detail": {
-        "上证指数": 0.0,
+        "上证指数": 3.0,
         "沪深300": 0.0,
         "创业板指": 0.0
       }
