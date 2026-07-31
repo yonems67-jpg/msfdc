@@ -45,21 +45,6 @@
     "leader_code": "sz300508"
   },
   {
-    "sector": "文化传媒",
-    "score": 80.05,
-    "detail": {
-      "资金净流入": 29.0,
-      "近5日涨幅": 12.5,
-      "板块涨跌家数比": 18.55,
-      "龙头强度": 15.0,
-      "持续性": 5.0
-    },
-    "leader_strength": 1.0,
-    "persistence": 0.5,
-    "leader_name": "中文在线",
-    "leader_code": "sz300364"
-  },
-  {
     "sector": "通用设备",
     "score": 79.98,
     "detail": {
@@ -73,5 +58,20 @@
     "persistence": 0.5,
     "leader_name": "长鹰硬科",
     "leader_code": "bj920238"
+  },
+  {
+    "sector": "文化传媒",
+    "score": 79.6,
+    "detail": {
+      "资金净流入": 29.0,
+      "近5日涨幅": 12.5,
+      "板块涨跌家数比": 18.1,
+      "龙头强度": 15.0,
+      "持续性": 5.0
+    },
+    "leader_strength": 1.0,
+    "persistence": 0.5,
+    "leader_name": "中文在线",
+    "leader_code": "sz300364"
   }
 ]
