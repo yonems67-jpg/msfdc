@@ -11,8 +11,8 @@
     },
     "leader_strength": 1.0,
     "persistence": 0.5,
-    "leader_name": "深信服",
-    "leader_code": "sz300454"
+    "leader_name": "致远互联",
+    "leader_code": "sh688369"
   },
   {
     "sector": "IT服务",
@@ -30,21 +30,6 @@
     "leader_code": "bj920130"
   },
   {
-    "sector": "文化传媒",
-    "score": 80.4,
-    "detail": {
-      "资金净流入": 29.33,
-      "近5日涨幅": 12.5,
-      "板块涨跌家数比": 18.57,
-      "龙头强度": 15.0,
-      "持续性": 5.0
-    },
-    "leader_strength": 1.0,
-    "persistence": 0.5,
-    "leader_name": "流金科技",
-    "leader_code": "bj920021"
-  },
-  {
     "sector": "通信设备",
     "score": 80.28,
     "detail": {
@@ -56,22 +41,37 @@
     },
     "leader_strength": 1.0,
     "persistence": 0.5,
-    "leader_name": "锐捷网络",
-    "leader_code": "sz301165"
+    "leader_name": "长芯博创",
+    "leader_code": "sz300548"
   },
   {
-    "sector": "游戏",
+    "sector": "文化传媒",
     "score": 80.17,
     "detail": {
-      "资金净流入": 27.67,
+      "资金净流入": 29.33,
       "近5日涨幅": 12.5,
-      "板块涨跌家数比": 20.0,
+      "板块涨跌家数比": 18.33,
       "龙头强度": 15.0,
       "持续性": 5.0
     },
     "leader_strength": 1.0,
     "persistence": 0.5,
-    "leader_name": "昆仑万维",
-    "leader_code": "sz300418"
+    "leader_name": "中文在线",
+    "leader_code": "sz300364"
+  },
+  {
+    "sector": "通用设备",
+    "score": 79.98,
+    "detail": {
+      "资金净流入": 28.67,
+      "近5日涨幅": 12.5,
+      "板块涨跌家数比": 18.81,
+      "龙头强度": 15.0,
+      "持续性": 5.0
+    },
+    "leader_strength": 1.0,
+    "persistence": 0.5,
+    "leader_name": "海川智能",
+    "leader_code": "sz300720"
   }
 ]
