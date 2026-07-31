@@ -24,22 +24,37 @@
 <main>
   <div class="page-head">
     <h2 class="page-title">板块与选股</h2>
-    <p class="page-note">资金集中的主线板块排名，以及在这些板块内经多因子打分后筛出的候选标的。</p>
+    <p class="page-note">
+      板块评分<strong>已降级为观察</strong>，不参与建仓决策。
+      五个打分项在个股层面全部实测为负；板块层面尚未测过 —— 无证据支持，也无证据推翻。
+      快照仍在持续积累，攒够 60–120 天后可跑行业维度回测。
+    </p>
   </div>
+
+  <section class="card" id="status"></section>
+
   <section class="section">
     <div class="section-head">
-      <h3 class="section-title">板块热力</h3>
-      <span class="section-meta">按综合得分取全市场前五</span>
+      <h3 class="section-title">板块评分</h3>
+      <span class="section-meta" id="sector-meta">仅观察</span>
     </div>
-    <div class="card" id="sectors"></div>
+    <div id="sector-list"></div>
   </section>
 
   <section class="section">
     <div class="section-head">
-      <h3 class="section-title">多因子选股池</h3>
-      <span class="section-meta">综合评分需达 85 分才进入买入判定</span>
+      <h3 class="section-title">打分项的实测对照</h3>
+      <span class="section-meta">个股层面证据</span>
     </div>
-    <div class="card table-wrap" id="pool"></div>
+    <div class="card" id="audit"></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <h3 class="section-title">快照积累进度</h3>
+      <span class="section-meta">这是将来测行业因子的原材料</span>
+    </div>
+    <div class="card" id="progress"></div>
   </section>
 </main>
 
@@ -47,58 +62,132 @@
 
 <script src="./terminal.js"></script>
 <script>
+const AUDIT = [
+  ["资金净流入排名", 30, "未测过", "个股层面的主力净流入也未验证", "muted"],
+  ["近5日涨幅", 20, "个股 ret5 最高档 −10 bps", "涨越多分越高，方向与实测相反", "neg"],
+  ["板块涨跌家数比", 20, "breadth 非单调 t=1.3", "第五轮 35 格未通过门槛 3.3", "neg"],
+  ["龙头强度", 15, "昨日涨停组 −66 bps", "龙头涨越多分越高，方向相反", "neg"],
+  ["持续性", 15, "动量持续，七维度全负", "连续强势加分，方向相反", "neg"],
+];
+
+const FUTURE_VARS = [
+  ["rel20", "个股20日涨幅 − 行业20日涨幅", "剥离行业 beta 后个股还剩什么"],
+  ["ind_mom", "行业20日涨幅在全行业中的分位", "行业动量是否有效"],
+  ["ind_rank_chg", "行业近3日排名 − 近20日排名", "行业排名的变化率"],
+  ["rel_amt", "个股成交额在本行业内的分位", "主因子的行业中性版本"],
+];
+
+function auditTable() {
+  const rows = AUDIT.map(a =>
+    `<tr>
+      <td>${esc(a[0])}</td>
+      <td class="num">${a[1]}</td>
+      <td class="${a[4]}">${esc(a[2])}</td>
+      <td class="dim">${esc(a[3])}</td>
+    </tr>`).join("");
+  return `<div class="table-wrap"><table class="tbl">
+      <thead><tr><th>打分项</th><th class="num">权重</th>
+        <th>个股层面实测</th><th>说明</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+    <p class="page-note">
+      注意区分两件事：今天的七轮回测<strong>完全没有行业维度</strong>，
+      所以不能说板块轮动被证伪。只能说它的五个构成变量在个股层面都是负的，
+      且没有任何证据表明它们在板块层面会反过来。
+    </p>`;
+}
+
+function sectorCard(s, rank) {
+  const d = s.detail || {};
+  const keys = Object.keys(d);
+  const bars = keys.map(k =>
+    `<div class="kv-row"><span class="kv-key">${esc(k)}</span>
+     <span class="kv-val num">${fmt.num(d[k], 1)}</span></div>`).join("");
+  return `<div class="card">
+    <div class="stock-head">
+      <div><span class="rank-badge">${rank}</span>
+        <span class="stock-name">${esc(s.sector || "—")}</span></div>
+      <span class="tag tag-muted">${fmt.num(s.score, 1)} 分 · 观察</span>
+    </div>
+    <div class="kv-list">${bars}</div>
+    ${s.leader_name ? `<div class="kv-row" style="margin-top:8px">
+      <span class="kv-key">领涨股</span>
+      <span class="kv-val">${esc(s.leader_name)}
+        <span class="tag tag-warn">不进候选池</span></span></div>` : ""}
+  </div>`;
+}
+
 (async function () {
   buildChrome("sectors.html");
   stampLastRun();
 
-  const [sectors, pool] = await Promise.all([
-    loadJson("sector_rank.json", []),
-    loadJson("stock_pool.json", []),
-  ]);
-
-  panel("板块热力", () => {
-    const el = document.getElementById("sectors");
-    if (!sectors || !sectors.length) {
-      el.innerHTML = emptyState("暂无板块数据", "定时任务运行后自动填充");
-      return;
-    }
-    const top = sectors[0].score || 1;
-    el.innerHTML = sectors.map(s => `<div class="bar-row">
-      <span class="bar-name">${esc(s.sector)}</span>
-      <div class="bar-track"><div class="bar-fill" style="width:${((s.score / top) * 100).toFixed(1)}%"></div></div>
-      <span class="bar-meta">${fmt.num(s.score, 1)}　龙头 ${esc(s.leader_name || "—")}</span>
-    </div>`).join("");
+  panel("打分项审计", () => {
+    document.getElementById("audit").innerHTML = auditTable();
   });
 
-  panel("选股池", () => {
-    const el = document.getElementById("pool");
-    if (!pool || !pool.length) {
-      el.innerHTML = emptyState("今日无候选标的",
-        "市场处于防守模式、或当日无个股达到入池标准时，此处为空");
-      return;
-    }
-    el.innerHTML = `<table>
-      <thead><tr>
-        <th>代码</th><th>所属板块</th>
-        <th class="right">资金</th><th class="right">趋势</th>
-        <th class="right">热点</th><th class="right">风险扣分</th>
-        <th class="right">综合</th>
-      </tr></thead>
-      <tbody>${pool.map(s => {
-        const d = s.detail || {};
-        return `<tr>
-          <td class="ticker">${esc(fmt.code(s.code))}</td>
-          <td class="name-cell">${esc(s.sector || "—")}</td>
-          <td class="right num">${fmt.num(d["资金因子"], 1)}</td>
-          <td class="right num">${fmt.num(d["趋势因子"], 1)}</td>
-          <td class="right num">${fmt.num(d["热点因子"], 1)}</td>
-          <td class="right num${(d["风险扣分"] || 0) > 0 ? " down" : ""}">${
-            (d["风险扣分"] || 0) > 0 ? "−" + fmt.num(d["风险扣分"], 1) : "0.0"}</td>
-          <td class="right num" style="font-weight:600">${fmt.num(s.score, 1)}</td>
-        </tr>`;
-      }).join("")}</tbody></table>`;
+  const data = await loadJson("sectors.json");
+  const list = Array.isArray(data) ? data : (data && (data.sectors || data.top_sectors)) || [];
+
+  panel("状态说明", () => {
+    document.getElementById("status").innerHTML = `
+      <h3 class="card-title">当前接入方式</h3>
+      <div class="kv-list">
+        <div class="kv-row"><span class="kv-key">建仓决策</span>
+          <span class="kv-val">不参与。候选池来自全市场主板快照，按 60 日均成交额排序</span></div>
+        <div class="kv-row"><span class="kv-key">行业标签</span>
+          <span class="kv-val">应来自 industry_map.json；若缺失则显示「未分类」，
+            行业集中度检查失效</span></div>
+        <div class="kv-row"><span class="kv-key">领涨股</span>
+          <span class="kv-val">不再作为候选池 —— 旧版以此为池，等于在动量最强的一批里选，
+            实测为负期望</span></div>
+        <div class="kv-row"><span class="kv-key">快照</span>
+          <span class="kv-val">继续每日积累，供将来行业维度回测使用</span></div>
+      </div>`;
+  });
+
+  panel("板块列表", () => {
+    document.getElementById("sector-meta").textContent =
+      list.length ? `${list.length} 个 · 仅观察` : "无数据";
+    document.getElementById("sector-list").innerHTML = list.length
+      ? `<div class="grid cols-2">${list.map((s, i) => sectorCard(s, i + 1)).join("")}</div>`
+      : emptyState("暂无板块数据", "行业板块一览接口为空时本模块会跳过");
+  });
+
+  panel("积累进度", () => {
+    const days = (data && data.history_days) || null;
+    const need = 60;
+    const pct = days ? Math.min(100, days / need * 100) : 0;
+    document.getElementById("progress").innerHTML = `
+      ${days !== null ? meter("已积累交易日", days, need, `目标 ${need} 天`) :
+        `<p class="page-note" style="margin-top:0">快照天数未知（sectors.json 中无 history_days 字段）</p>`}
+      <h3 class="card-title" style="margin-top:16px">攒够之后能测什么</h3>
+      <div class="table-wrap"><table class="tbl">
+        <thead><tr><th>变量</th><th>定义</th><th>回答的问题</th></tr></thead>
+        <tbody>${FUTURE_VARS.map(v =>
+          `<tr><td><code>${esc(v[0])}</code></td><td>${esc(v[1])}</td>
+           <td class="dim">${esc(v[2])}</td></tr>`).join("")}</tbody>
+      </table></div>
+      <p class="page-note">
+        其中 <code>rel20</code> 是核心 —— 它直接回答「今天测的所有涨跌幅变量，
+        是不是只是行业轮动的影子」。若剥离行业 beta 后个股动量仍为负，
+        「动量为负」这个结论就更硬；若变中性，说明测到的是行业效应而非个股效应。
+      </p>`;
   });
 })();
 </script>
+
+<style>
+.rank-badge { display:inline-block; min-width:1.6em; text-align:center;
+  font-variant-numeric:tabular-nums; opacity:.55; margin-right:6px; }
+.stock-head { display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:10px; }
+.stock-name { font-weight:600; }
+.kv-row { display:flex; justify-content:space-between; gap:12px; padding:3px 0; }
+.kv-key { opacity:.7; }
+.kv-val.num { font-variant-numeric:tabular-nums; }
+.tbl td.num, .tbl th.num { text-align:right; font-variant-numeric:tabular-nums; }
+.tbl td.neg { color:var(--neg,#b4483c); }
+.tbl td.muted, .tbl td.dim { opacity:.65; font-size:.92em; }
+.table-wrap { overflow-x:auto; }
+code { font-size:.9em; opacity:.85; }
+</style>
 </body>
 </html>
