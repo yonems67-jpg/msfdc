@@ -24,63 +24,58 @@
 <main>
   <div class="page-head">
     <h2 class="page-title">持仓录入</h2>
-    <p class="page-note">录入的成本与数量是持仓监控的计算依据。数据保存在你自己的仓库里，每 5 分钟被读取一次。</p>
+    <p class="page-note">
+      手动登记实际成交，用于持仓监控与影子记录对照。
+      <strong>影子模式</strong>下只记录不视为真实持仓，用来积累信号质量数据。
+    </p>
   </div>
 
-  <div class="grid cols-2">
-    <section class="card">
-      <h3 class="card-title">添加持仓</h3>
-      <div class="form-grid">
-        <div>
-          <label for="f-code">股票代码</label>
-          <input type="text" id="f-code" placeholder="600519" autocomplete="off" inputmode="numeric" />
-          <div class="hint">填 6 位数字即可，系统会自动识别沪深市场</div>
-        </div>
-        <div>
-          <label for="f-cost">买入成本价</label>
-          <input type="number" id="f-cost" step="0.001" placeholder="1250.00" />
-        </div>
-        <div>
-          <label for="f-qty">持仓数量（股）</label>
-          <input type="number" id="f-qty" step="100" placeholder="100" />
-        </div>
-        <div>
-          <label for="f-sector">所属板块（可选）</label>
-          <input type="text" id="f-sector" placeholder="白酒" autocomplete="off" />
-          <div class="hint">与板块热力榜名称一致时，可参与"板块是否仍强势"的判断</div>
-        </div>
-        <div>
-          <button type="button" id="btn-save">保存持仓</button>
-        </div>
-        <div class="form-status" id="status" role="status" aria-live="polite"></div>
-      </div>
-    </section>
+  <section class="card">
+    <h3 class="card-title">新增记录</h3>
+    <div class="form-grid">
+      <label class="fld"><span>股票代码</span>
+        <input id="f-code" inputmode="numeric" maxlength="6" placeholder="600000" /></label>
+      <label class="fld"><span>名称（可选）</span>
+        <input id="f-name" placeholder="自动补全失败时手填" /></label>
+      <label class="fld"><span>方向</span>
+        <select id="f-side"><option value="buy">买入</option><option value="sell">卖出</option></select></label>
+      <label class="fld"><span>成交价</span>
+        <input id="f-price" inputmode="decimal" placeholder="12.34" /></label>
+      <label class="fld"><span>股数</span>
+        <input id="f-shares" inputmode="numeric" placeholder="100" /></label>
+      <label class="fld"><span>成交日期</span>
+        <input id="f-date" type="date" /></label>
+      <label class="fld"><span>模式</span>
+        <select id="f-mode">
+          <option value="shadow">影子记录（不下单）</option>
+          <option value="real">真实成交</option>
+        </select></label>
+      <label class="fld"><span>备注</span>
+        <input id="f-note" placeholder="可选" /></label>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" id="btn-submit">提交</button>
+      <button class="btn" id="btn-clear">清空</button>
+      <span class="form-msg" id="msg"></span>
+    </div>
+  </section>
 
-    <section class="card">
-      <h3 class="card-title">接口设置</h3>
-      <div class="form-grid">
-        <div>
-          <label for="f-api">函数地址</label>
-          <input type="text" id="f-api" placeholder="https://xxx.fcapp.run" />
-        </div>
-        <div>
-          <label for="f-secret">访问密钥</label>
-          <input type="password" id="f-secret" placeholder="与函数环境变量 API_SECRET 一致" />
-        </div>
-        <div>
-          <button type="button" class="quiet" id="btn-conn">保存设置并重新读取</button>
-        </div>
-        <div class="hint">设置保存在本机浏览器，不会写入仓库。留空密钥则不做校验（不建议）。</div>
-      </div>
-    </section>
-  </div>
+  <section class="card" id="shadow-note"></section>
 
   <section class="section">
     <div class="section-head">
-      <h3 class="section-title">当前持仓</h3>
-      <span class="section-meta">最多同时持有 5 笔</span>
+      <h3 class="section-title">已登记记录</h3>
+      <span class="section-meta" id="log-meta">—</span>
     </div>
-    <div class="card table-wrap" id="list"></div>
+    <div class="card" id="log"></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <h3 class="section-title">影子交易怎么用</h3>
+      <span class="section-meta">回测通过不等于能上真钱</span>
+    </div>
+    <div class="card" id="howto"></div>
   </section>
 </main>
 
@@ -88,129 +83,166 @@
 
 <script src="./terminal.js"></script>
 <script>
-/* 接口地址与密钥存在浏览器本地，避免写死在代码里推到公开仓库 */
-const LS_API = "tdt.apiBase", LS_SEC = "tdt.apiSecret";
+const ENDPOINT = "https://position-zjrormarem.cn-hangzhou.fcapp.run";
 
-function getConf() {
-  return {
-    base: (localStorage.getItem(LS_API) || "").replace(/\/+$/, ""),
-    secret: localStorage.getItem(LS_SEC) || "",
+function setMsg(text, kind) {
+  const el = document.getElementById("msg");
+  el.textContent = text;
+  el.className = "form-msg" + (kind ? " is-" + kind : "");
+}
+
+function val(id) { return (document.getElementById(id).value || "").trim(); }
+
+function validate() {
+  const code = val("f-code");
+  if (!/^\d{6}$/.test(code)) return "股票代码需为 6 位数字";
+  const px = parseFloat(val("f-price"));
+  if (!isFinite(px) || px <= 0) return "成交价无效";
+  const sh = parseInt(val("f-shares"), 10);
+  if (!isFinite(sh) || sh <= 0) return "股数无效";
+  if (sh % 100 !== 0) return "股数需为 100 的整数倍";
+  if (!val("f-date")) return "请选择成交日期";
+  return null;
+}
+
+async function submit() {
+  const err = validate();
+  if (err) { setMsg(err, "err"); return; }
+
+  const payload = {
+    code: val("f-code"),
+    name: val("f-name") || null,
+    side: val("f-side"),
+    price: parseFloat(val("f-price")),
+    shares: parseInt(val("f-shares"), 10),
+    trade_date: val("f-date"),
+    mode: val("f-mode"),
+    note: val("f-note") || null,
+    submitted_at: new Date().toISOString(),
   };
-}
 
-function setStatus(msg, kind) {
-  const el = document.getElementById("status");
-  el.textContent = msg;
-  el.className = "form-status" + (kind ? " " + kind : "");
-}
-
-async function api(path, method = "GET", body = null) {
-  const { base, secret } = getConf();
-  if (!base) throw new Error("尚未填写函数地址");
-  const res = await fetch(base + path, {
-    method,
-    headers: Object.assign({ "Content-Type": "application/json" },
-      secret ? { "X-Api-Secret": secret } : {}),
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || data.ok === false) {
-    throw new Error(data.error || `HTTP ${res.status}`);
-  }
-  return data;
-}
-
-function renderList(positions) {
-  const el = document.getElementById("list");
-  if (!positions || !positions.length) {
-    el.innerHTML = emptyState("还没有持仓记录", "用左侧表单添加第一笔");
-    return;
-  }
-  el.innerHTML = `<table>
-    <thead><tr>
-      <th>代码</th><th class="right">成本</th><th class="right">数量</th>
-      <th>板块</th><th>建仓日</th><th class="right">操作</th>
-    </tr></thead>
-    <tbody>${positions.map(p => `<tr>
-      <td class="ticker">${esc(fmt.code(p.code))}</td>
-      <td class="right num">${fmt.price(p.cost_price)}</td>
-      <td class="right num">${esc(p.quantity)}</td>
-      <td>${esc(p.sector || "—")}</td>
-      <td class="num" style="font-size:12.5px;color:var(--ink-faint)">${esc(p.opened_at || "—")}</td>
-      <td class="right"><button type="button" class="danger" data-code="${esc(p.code)}">移除</button></td>
-    </tr>`).join("")}</tbody></table>`;
-
-  el.querySelectorAll("button[data-code]").forEach(b => {
-    b.addEventListener("click", async () => {
-      const code = b.getAttribute("data-code");
-      if (!confirm(`移除 ${code} 这笔持仓？`)) return;
-      try {
-        const r = await api("/positions/" + encodeURIComponent(code), "DELETE");
-        renderList(r.positions);
-        setStatus(`已移除 ${code}`, "ok");
-      } catch (e) { setStatus("移除失败：" + e.message, "err"); }
-    });
-  });
-}
-
-async function refresh() {
-  const { base } = getConf();
-  if (!base) {
-    document.getElementById("list").innerHTML =
-      emptyState("先填写函数地址", "在右侧「接口设置」填入 .fcapp.run 地址后即可读取持仓");
-    return;
-  }
+  setMsg("提交中…", "");
+  document.getElementById("btn-submit").disabled = true;
   try {
-    const r = await api("/positions");
-    renderList(r.positions);
+    const r = await fetch(ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const txt = await r.text();
+    if (r.ok) {
+      setMsg("已提交 · " + txt.slice(0, 80), "ok");
+      ["f-code", "f-name", "f-price", "f-shares", "f-note"].forEach(i =>
+        document.getElementById(i).value = "");
+    } else {
+      setMsg("失败 " + r.status + " · " + txt.slice(0, 120), "err");
+    }
   } catch (e) {
-    document.getElementById("list").innerHTML =
-      emptyState("读取持仓失败", e.message);
+    setMsg("网络错误：" + String(e).slice(0, 120), "err");
+  } finally {
+    document.getElementById("btn-submit").disabled = false;
   }
 }
 
-(function () {
+const HOWTO = [
+  ["为什么要空跑", "回测通过只说明「在过去五年、按这套规则、且滑点确实是估计值」时成立。"
+    + "三个前提都可能不成立 —— 市场结构会变、执行会漂移、滑点是估的。"],
+  ["跑多久", "至少到滚动缓存满 60 个交易日，主因子从「当日成交额代理」切换到真实的 60 日均额。"
+    + "同时积累 50–100 笔信号。"],
+  ["比什么", "实际单笔净收益落在回测分布的什么分位。低于 25 分位说明回测有系统性乐观，"
+    + "最常见的原因是滑点估低了。"],
+  ["然后呢", "把实测滑点填回 config，重跑回测，看结论还成不成立。"
+    + "这一步很多人跳过，然后用真钱去发现回测是假的。"],
+];
+
+(async function () {
   buildChrome("positions.html");
   stampLastRun();
 
-  const conf = getConf();
-  document.getElementById("f-api").value = conf.base;
-  document.getElementById("f-secret").value = conf.secret;
-
-  document.getElementById("btn-conn").addEventListener("click", () => {
-    localStorage.setItem(LS_API, document.getElementById("f-api").value.trim());
-    localStorage.setItem(LS_SEC, document.getElementById("f-secret").value);
-    setStatus("设置已保存", "ok");
-    refresh();
+  document.getElementById("f-date").value = new Date().toISOString().slice(0, 10);
+  document.getElementById("btn-submit").addEventListener("click", submit);
+  document.getElementById("btn-clear").addEventListener("click", () => {
+    ["f-code", "f-name", "f-price", "f-shares", "f-note"].forEach(i =>
+      document.getElementById(i).value = "");
+    setMsg("", "");
   });
 
-  document.getElementById("btn-save").addEventListener("click", async () => {
-    const code = document.getElementById("f-code").value.trim();
-    const cost = parseFloat(document.getElementById("f-cost").value);
-    const qty = parseInt(document.getElementById("f-qty").value, 10);
-    const sector = document.getElementById("f-sector").value.trim();
+  panel("影子说明", () => {
+    document.getElementById("shadow-note").innerHTML = `
+      <h3 class="card-title">当前建议：影子模式</h3>
+      <p style="margin:0 0 10px">
+        主因子仍可能处于代理期，且回测显示需 50 只以上持仓才能实现该因子超额
+        （持仓 20 只时 t 仅 1.22，个股信噪比约 1:15）。
+        在此之前用影子记录积累数据，比用小资金试错更划算。
+      </p>
+      <div class="kv-list">
+        <div class="kv-row"><span class="kv-key">影子记录</span>
+          <span class="kv-val">进入统计与对照，不计入真实持仓与仓位</span></div>
+        <div class="kv-row"><span class="kv-key">真实成交</span>
+          <span class="kv-val">计入持仓监控，参与仓位与行业集中度计算</span></div>
+      </div>`;
+  });
 
-    if (!code) { setStatus("请填写股票代码", "err"); return; }
-    if (!(cost > 0)) { setStatus("成本价需大于 0", "err"); return; }
-    if (!(qty > 0)) { setStatus("持仓数量需大于 0", "err"); return; }
+  panel("使用说明", () => {
+    document.getElementById("howto").innerHTML =
+      `<div class="kv-list">${HOWTO.map(h =>
+        `<div class="kv-row"><span class="kv-key">${esc(h[0])}</span>
+         <span class="kv-val dim">${esc(h[1])}</span></div>`).join("")}</div>`;
+  });
 
-    setStatus("正在保存…");
-    try {
-      const r = await api("/positions", "POST", {
-        code, cost_price: cost, quantity: qty,
-        sector: sector || null,
-        opened_at: new Date().toISOString().slice(0, 10),
-      });
-      renderList(r.positions);
-      setStatus(`已保存 ${code}`, "ok");
-      ["f-code", "f-cost", "f-qty", "f-sector"].forEach(id => document.getElementById(id).value = "");
-    } catch (e) {
-      setStatus("保存失败：" + e.message, "err");
+  const data = await loadJson("position_log.json");
+  const list = Array.isArray(data) ? data : (data && (data.records || data.log)) || [];
+
+  panel("记录列表", () => {
+    document.getElementById("log-meta").textContent =
+      list.length ? `${list.length} 条` : "无";
+    if (!list.length) {
+      document.getElementById("log").innerHTML =
+        emptyState("尚无记录", "提交后由 FC 写入 position_log.json");
+      return;
     }
+    const rows = list.slice().reverse().slice(0, 100).map(r =>
+      `<tr>
+        <td>${esc(r.trade_date || r.date || "")}</td>
+        <td class="num">${esc(r.code || "")}</td>
+        <td>${esc(r.name || "")}</td>
+        <td><span class="tag ${r.side === "sell" ? "tag-warn" : "tag-ok"}">
+          ${r.side === "sell" ? "卖出" : "买入"}</span></td>
+        <td class="num">${fmt.num(r.price, 2)}</td>
+        <td class="num">${fmt.num(r.shares, 0)}</td>
+        <td><span class="tag tag-muted">${r.mode === "real" ? "真实" : "影子"}</span></td>
+        <td class="dim">${esc(r.note || "")}</td>
+      </tr>`).join("");
+    document.getElementById("log").innerHTML = `
+      <div class="table-wrap"><table class="tbl">
+        <thead><tr><th>日期</th><th class="num">代码</th><th>名称</th><th>方向</th>
+          <th class="num">价格</th><th class="num">股数</th><th>模式</th><th>备注</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>`;
   });
-
-  refresh();
 })();
 </script>
+
+<style>
+.form-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; }
+.fld { display:flex; flex-direction:column; gap:5px; font-size:.9em; }
+.fld span { opacity:.7; }
+.fld input, .fld select { padding:8px 10px; border:1px solid var(--rule,#d8d4cc);
+  border-radius:6px; background:transparent; color:inherit; font:inherit; }
+.form-actions { display:flex; align-items:center; gap:10px; margin-top:14px; flex-wrap:wrap; }
+.btn { padding:8px 16px; border:1px solid var(--rule,#d8d4cc); border-radius:6px;
+  background:transparent; color:inherit; font:inherit; cursor:pointer; }
+.btn-primary { border-color:var(--accent,#3d7a5a); }
+.btn:disabled { opacity:.5; cursor:default; }
+.form-msg { font-size:.9em; opacity:.8; }
+.form-msg.is-ok { color:var(--pos,#3d7a5a); }
+.form-msg.is-err { color:var(--neg,#b4483c); }
+.kv-row { display:flex; gap:12px; padding:4px 0; align-items:baseline; }
+.kv-key { opacity:.7; min-width:6em; flex-shrink:0; }
+.kv-val { flex:1; }
+.kv-val.dim { opacity:.7; font-size:.92em; }
+.tbl td.num, .tbl th.num { text-align:right; font-variant-numeric:tabular-nums; }
+.tbl td.dim { opacity:.65; font-size:.9em; }
+.table-wrap { overflow-x:auto; }
+</style>
 </body>
 </html>
