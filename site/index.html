@@ -24,8 +24,13 @@
 <main>
   <div class="page-head">
     <h2 class="page-title">市场雷达</h2>
-    <p class="page-note">当日市场做多价值评分决定总仓位上限。评分跌破 40 分强制空仓，达到 70 分才允许开新仓。</p>
+    <p class="page-note">
+      市场评分仅作参考，<strong>不再作为开仓门槛</strong>。2026-07-31 回测：
+      7 个市场状态变量、35 个格子，全部非单调，最高 t=2.0（门槛 3.3）——
+      用它当强制开关等于用噪声决定今天做不做。
+    </p>
   </div>
+
   <section class="card">
     <div class="gauge-wrap">
       <div>
@@ -33,13 +38,13 @@
           <div id="gauge"></div>
           <div class="gauge-readout">
             <div class="score-value" id="score">—</div>
-            <div class="score-of">满分 100</div>
+            <div class="score-of">满分 100 · 仅参考</div>
             <div class="mode-line" id="mode"></div>
           </div>
         </div>
       </div>
       <div>
-        <h3 class="card-title">仓位分档</h3>
+        <h3 class="card-title">分档（参考区间，非强制）</h3>
         <div class="regime-band" id="regimes"></div>
       </div>
     </div>
@@ -47,10 +52,26 @@
 
   <section class="section">
     <div class="section-head">
+      <h3 class="section-title">真正生效的约束</h3>
+      <span class="section-meta">来自样本外验证，这些才决定能不能建仓</span>
+    </div>
+    <div class="grid cols-2" id="constraints"></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
       <h3 class="section-title">评分构成</h3>
-      <span class="section-meta">四项指标加权，合计 100 分</span>
+      <span class="section-meta">四项指标加权 · 各项的实测有效性见标注</span>
     </div>
     <div class="grid cols-2" id="breakdown"></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <h3 class="section-title">已测试的市场择时变量</h3>
+      <span class="section-meta">第五轮 35 格 · 全部未通过预注册判据 t&gt;3.3</span>
+    </div>
+    <div class="card" id="timing-table"></div>
   </section>
 </main>
 
@@ -59,17 +80,109 @@
 <script src="./terminal.js"></script>
 <script>
 const REGIMES = [
-  { name: "进攻模式", range: "80 – 100", cap: "70% – 100%", lo: 80, hi: 101 },
-  { name: "正常模式", range: "60 – 79",  cap: "40% – 70%",  lo: 60, hi: 80 },
-  { name: "谨慎模式", range: "40 – 59",  cap: "20% – 30%",  lo: 40, hi: 60 },
-  { name: "防守模式", range: "0 – 39",   cap: "强制空仓",    lo: 0,  hi: 40 },
+  { name: "进攻参考", range: "80 – 100", cap: "参考 70%+", lo: 80, hi: 101 },
+  { name: "正常参考", range: "60 – 79",  cap: "参考 40–70%", lo: 60, hi: 80 },
+  { name: "谨慎参考", range: "40 – 59",  cap: "参考 20–30%", lo: 40, hi: 60 },
+  { name: "防守参考", range: "0 – 39",   cap: "参考低仓",   lo: 0,  hi: 40 },
 ];
 
 const MAXES = { "指数趋势": 30, "赚钱效应": 30, "流动性": 20, "情绪偏好": 20 };
 
+// 第五轮实测：各市场择时变量分档的未来5日全市场收益（bps），t 已按重叠样本修正
+const TIMING_TEST = [
+  { name: "涨停家数",   cells: [-150, -8, 29, 14, 46],   t: "-2.5 ~ +1.2", mono: "非单调" },
+  { name: "炸板率",     cells: [-112, 40, 5, 24, -26],   t: "-1.8 ~ +0.9", mono: "非单调" },
+  { name: "市场宽度",   cells: [-57, -42, -1, -31, 62],  t: "-0.9 ~ +1.3", mono: "非单调" },
+  { name: "市场20日涨幅", cells: [42, -57, -71, -27, 45], t: "-1.3 ~ +0.9", mono: "非单调" },
+  { name: "市场波动率", cells: [3, -54, -99, -17, 99],   t: "-1.8 ~ +1.7", mono: "非单调" },
+  { name: "成交额变化", cells: [-60, -78, -36, 5, 101],  t: "-1.4 ~ +2.0", mono: "非单调" },
+  { name: "个股分化度", cells: [-97, 7, 13, -30, 39],    t: "-2.0 ~ +0.6", mono: "非单调" },
+];
+
+// 真正通过样本外验证的约束
+const CONSTRAINTS = [
+  {
+    title: "主因子：60日均成交额最低 20%",
+    lines: [
+      "样本内 +322 bps / 60天　t = 8.19　(2018-2022)",
+      "样本外 +160 bps / 60天　t = 5.24　(2023-2026)",
+      "持有期单调性 20→40→60日：68 → 115 → 160 bps",
+      "期胜率 66% · 含 197 只退市股",
+    ],
+    ok: true,
+  },
+  {
+    title: "分散度：需 50 只以上持仓",
+    lines: [
+      "该因子超额来自整层约 250 只股票的平均效应",
+      "个股信噪比约 1:15（超额 1.6% vs 单只波动 25%+）",
+      "完整回测：持仓 20 只时 t 仅 1.22（181 笔）",
+      "持仓不足 30 只时，页面会给出警告",
+    ],
+    ok: true,
+  },
+  {
+    title: "硬性剔除：四条",
+    lines: [
+      "ST / 退市整理",
+      "股价 &lt; 2 元（面值退市高危区）",
+      "60日均成交额 &lt; 500 万",
+      "昨日涨停（该组未来5日 −66 bps）",
+    ],
+    ok: true,
+  },
+  {
+    title: "已证伪：动量方向",
+    lines: [
+      "个股 5/20/60 日涨幅最高档全为负",
+      "剥离 beta 的残差收益、日内买卖压力同向",
+      "七个独立维度，t 值 −2.5 至 −4.7",
+      "本系统不含任何突破 / 放量 / 强势加分项",
+    ],
+    ok: false,
+  },
+];
+
+function constraintCard(c) {
+  return `<div class="card">
+    <h3 class="card-title">${esc(c.title)}</h3>
+    <div class="kv-list">
+      ${c.lines.map(l => `<div class="kv-row"><span class="kv-val">${l}</span></div>`).join("")}
+    </div>
+  </div>`;
+}
+
+function timingRow(r) {
+  const cells = r.cells.map(v =>
+    `<td class="num ${v > 0 ? "pos" : v < 0 ? "neg" : ""}">${v > 0 ? "+" : ""}${v}</td>`
+  ).join("");
+  return `<tr><td>${esc(r.name)}</td>${cells}<td class="num">${esc(r.t)}</td><td>${esc(r.mono)}</td></tr>`;
+}
+
 (async function () {
   buildChrome("index.html");
   stampLastRun();
+
+  panel("真正生效的约束", () => {
+    document.getElementById("constraints").innerHTML =
+      CONSTRAINTS.map(constraintCard).join("");
+  });
+
+  panel("择时测试表", () => {
+    document.getElementById("timing-table").innerHTML = `
+      <p class="page-note" style="margin-top:0">
+        因变量为未来 5 日全市场平均收益（bps）。全样本基准 −14 bps。
+        七个变量分档后全部非单调，最高 t = 2.0，均未达到 Bonferroni 门槛 3.3。
+      </p>
+      <div class="table-wrap"><table class="tbl">
+        <thead><tr>
+          <th>变量</th><th class="num">档0</th><th class="num">档1</th>
+          <th class="num">档2</th><th class="num">档3</th><th class="num">档4</th>
+          <th class="num">t 范围</th><th>形态</th>
+        </tr></thead>
+        <tbody>${TIMING_TEST.map(timingRow).join("")}</tbody>
+      </table></div>`;
+  });
 
   const data = await loadJson("market_score.json");
 
@@ -87,7 +200,7 @@ const MAXES = { "指数趋势": 30, "赚钱效应": 30, "流动性": 20, "情绪
   panel("仪表盘", () => {
     renderGauge(document.getElementById("gauge"), data.total_score);
     document.getElementById("score").textContent = fmt.num(data.total_score, 1);
-    document.getElementById("mode").textContent = data.mode || "";
+    document.getElementById("mode").textContent = (data.mode || "") + " · 参考值";
   });
 
   panel("仓位分档", () => {
@@ -99,7 +212,9 @@ const MAXES = { "指数趋势": 30, "赚钱效应": 30, "流动性": 20, "情绪
         <span>${r.name}</span>
         <span class="regime-cap">${r.cap}</span>
       </div>`;
-    }).join("");
+    }).join("") + `<p class="page-note" style="margin:12px 0 0">
+      这些区间没有回测支撑，仅供参考。实际建仓由主因子与分散度决定。
+    </p>`;
   });
 
   panel("评分构成", () => {
@@ -107,7 +222,7 @@ const MAXES = { "指数趋势": 30, "赚钱效应": 30, "流动性": 20, "情绪
     const keys = Object.keys(bd);
     document.getElementById("breakdown").innerHTML = keys.length
       ? keys.map(k => `<div class="card">
-          <h3 class="card-title">${esc(k)}</h3>
+          <h3 class="card-title">${esc(k)}　<span class="tag tag-muted">实测非单调</span></h3>
           ${meter("得分", bd[k].score, MAXES[k] || 30, detailLine(bd[k].detail))}
         </div>`).join("")
       : emptyState("暂无评分明细", "");
