@@ -3,39 +3,39 @@
     "code": "000938",
     "cost_price": 43.945,
     "quantity": 200,
-    "last_price": null,
+    "last_price": 33.6,
     "pnl_ratio": -0.2354,
     "day_change": null,
     "active_net_ratio": null,
-    "action": "清仓",
+    "action": "持有",
     "reasons": [
-      "市场择时评分 34.0 跌破 40，全部持仓强制清仓"
+      "趋势完好，主力资金无持续流出，维持原有仓位"
     ]
   },
   {
     "code": "588710",
     "cost_price": 3.095,
     "quantity": 300,
-    "last_price": null,
+    "last_price": 2.777,
     "pnl_ratio": -0.1027,
     "day_change": null,
     "active_net_ratio": null,
-    "action": "清仓",
+    "action": "持有",
     "reasons": [
-      "市场择时评分 34.0 跌破 40，全部持仓强制清仓"
+      "趋势完好，主力资金无持续流出，维持原有仓位"
     ]
   },
   {
     "code": "603879",
     "cost_price": 4.75,
     "quantity": 100,
-    "last_price": null,
+    "last_price": 4.82,
     "pnl_ratio": 0.0147,
     "day_change": null,
     "active_net_ratio": null,
-    "action": "清仓",
+    "action": "持有",
     "reasons": [
-      "市场择时评分 34.0 跌破 40，全部持仓强制清仓"
+      "趋势完好，主力资金无持续流出，维持原有仓位"
     ]
   }
 ]
