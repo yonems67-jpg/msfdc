@@ -16,24 +16,9 @@
   },
   {
     "sector": "IT服务",
-    "score": 81.34,
+    "score": 81.5,
     "detail": {
       "资金净流入": 29.0,
-      "近5日涨幅": 12.5,
-      "板块涨跌家数比": 19.84,
-      "龙头强度": 15.0,
-      "持续性": 5.0
-    },
-    "leader_strength": 1.0,
-    "persistence": 0.5,
-    "leader_name": "立方控股",
-    "leader_code": "bj920130"
-  },
-  {
-    "sector": "游戏",
-    "score": 80.5,
-    "detail": {
-      "资金净流入": 28.0,
       "近5日涨幅": 12.5,
       "板块涨跌家数比": 20.0,
       "龙头强度": 15.0,
@@ -41,8 +26,8 @@
     },
     "leader_strength": 1.0,
     "persistence": 0.5,
-    "leader_name": "昆仑万维",
-    "leader_code": "sz300418"
+    "leader_name": "立方控股",
+    "leader_code": "bj920130"
   },
   {
     "sector": "文化传媒",
@@ -56,22 +41,37 @@
     },
     "leader_strength": 1.0,
     "persistence": 0.5,
-    "leader_name": "中文在线",
-    "leader_code": "sz300364"
+    "leader_name": "流金科技",
+    "leader_code": "bj920021"
   },
   {
     "sector": "通信设备",
-    "score": 80.17,
+    "score": 80.39,
     "detail": {
       "资金净流入": 28.33,
       "近5日涨幅": 12.5,
-      "板块涨跌家数比": 19.33,
+      "板块涨跌家数比": 19.56,
       "龙头强度": 15.0,
       "持续性": 5.0
     },
     "leader_strength": 1.0,
     "persistence": 0.5,
-    "leader_name": "长芯博创",
-    "leader_code": "sz300548"
+    "leader_name": "锐捷网络",
+    "leader_code": "sz301165"
+  },
+  {
+    "sector": "游戏",
+    "score": 80.17,
+    "detail": {
+      "资金净流入": 27.67,
+      "近5日涨幅": 12.5,
+      "板块涨跌家数比": 20.0,
+      "龙头强度": 15.0,
+      "持续性": 5.0
+    },
+    "leader_strength": 1.0,
+    "persistence": 0.5,
+    "leader_name": "昆仑万维",
+    "leader_code": "sz300418"
   }
 ]
