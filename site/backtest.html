@@ -24,25 +24,50 @@
 <main>
   <div class="page-head">
     <h2 class="page-title">策略回测</h2>
-    <p class="page-note">每笔交易的完整记录会自动留存，指标由已平仓交易计算得出，用于校正因子权重与阈值。</p>
+    <p class="page-note">
+      2026-07-31 全天测试记录。数据区间 2017-11 ~ 2026-07，2889 只主板股（含 197 只退市股），
+      2112 个交易日。七轮预注册网格搜索共 2170 个格子。
+    </p>
   </div>
+
   <section class="section">
-    <div class="grid cols-4" id="metrics"></div>
+    <div class="section-head">
+      <h3 class="section-title">唯一通过样本外验证的配置</h3>
+      <span class="section-meta">全部判据在跑之前定死，事后未放宽</span>
+    </div>
+    <div class="card" id="validated"></div>
   </section>
 
   <section class="section">
     <div class="section-head">
-      <h3 class="section-title">账户净值</h3>
-      <span class="section-meta" id="curve-meta"></span>
+      <h3 class="section-title">七轮搜索地图</h3>
+      <span class="section-meta">哪些方向测过、结果如何</span>
     </div>
-    <div class="card"><div id="curve"></div></div>
+    <div class="card" id="rounds"></div>
   </section>
 
   <section class="section">
     <div class="section-head">
-      <h3 class="section-title">单周收益分布</h3>
+      <h3 class="section-title">跨周期稳定的结论</h3>
+      <span class="section-meta">多个独立维度重复出现</span>
     </div>
-    <div class="card" id="weekly"></div>
+    <div class="grid cols-2" id="findings"></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <h3 class="section-title">已知问题</h3>
+      <span class="section-meta">用之前必须知道</span>
+    </div>
+    <div class="card" id="caveats"></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <h3 class="section-title">线上回测结果</h3>
+      <span class="section-meta" id="live-meta">读取 backtest.json</span>
+    </div>
+    <div id="live"></div>
   </section>
 </main>
 
@@ -50,64 +75,180 @@
 
 <script src="./terminal.js"></script>
 <script>
+const VALIDATED = {
+  rules: [
+    "主板，剔除 ST / *ST",
+    "剔除股价 &lt; 2 元",
+    "剔除近 60 日日均成交额 &lt; 500 万",
+    "取剩余股票中 <strong>60 日均成交额最低 20%</strong>",
+    "<strong>等权持有 60 个交易日</strong>，到期换仓，中途不动",
+    "每 15 个交易日开一批，4 个梯队滚动",
+  ],
+  metrics: [
+    ["样本内超额（2018-2022）", "+322 bps / 60天", "t = 8.19", "ok"],
+    ["样本外超额（2023-2026）", "+160 bps / 60天", "t = 5.24", "ok"],
+    ["期胜率（样本外）", "66%", "—", "ok"],
+    ["持有期单调性", "20→40→60日：68 → 115 → 160 bps", "保持", "ok"],
+    ["含退市股", "197 只已补入", "—", "ok"],
+    ["完整回测（持仓20只）", "181 笔", "t = 1.22", "warn"],
+  ],
+};
+
+const ROUNDS = [
+  { n: 1, name: "基础横截面因子", vars: "涨跌幅 / 成交额 / 波动率 / 市值", cells: 120, res: "通过 1 个（60日低成交额）", ok: true },
+  { n: 2, name: "短线专属变量", vars: "跳空 / 收盘位置 / 放量 / 振幅 / 连跌 / 涨跌停", cells: 540, res: "全空，最高 41 bps", ok: false },
+  { n: 3, name: "残差与 beta", vars: "残差收益 / beta / 特质波动 / beta变化", cells: 125, res: "beta 是陷阱（纯 beta 暴露）", ok: false },
+  { n: 4, name: "量价一致性", vars: "量价相关 / 买卖压力 / 背离 / 量能趋势", cells: 625, res: "全空，t 分布纯正态", ok: false },
+  { n: 5, name: "市场择时", vars: "涨停家数 / 炸板率 / 宽度 / 成交额 / 分化度 等 7 项", cells: 35, res: "全部非单调，最高 t=2.0", ok: false },
+  { n: 6, name: "市场反转", vars: "5/20/60日涨跌 / 距高点回撤", cells: 125, res: "方向对但样本量不足（自由度仅 5）", ok: false },
+  { n: 7, name: "分时均价偏离度", vars: "收盘偏离均价 / 开盘偏离 / 偏离变化", cells: 600, res: "全空，尾盘强势反而跑输", ok: false },
+];
+
+const FINDINGS = [
+  {
+    title: "动量在所有周期显著为负",
+    body: "个股 5/20/60 日涨幅、昨日涨停、剥离 beta 的残差收益、日内买卖压力 —— "
+        + "五个独立维度上「刚涨过」均对应显著负收益，t 值 −2.5 至 −4.7。"
+        + "昨日涨停组未来 5 日 −66 bps；首板回调策略实测 −53.5 bps（t=−5.06）。",
+  },
+  {
+    title: "幸存者偏差实测 1283 bps",
+    body: "同一因子，仅用存活股票测得 +496 bps，补入 197 只退市股后为 −788 bps。"
+        + "任何不含退市股的 A 股回测，年化被高估约 10 个百分点。"
+        + "pytdx 只返回在市股票，退市股需从腾讯源单独补齐。",
+  },
+  {
+    title: "启动率 ≠ 期望值，方向相反",
+    body: "高波动 / 高换手 / 大振幅 / 距低点远的股票，三日涨超 10% 的概率是基准的 4–6 倍，"
+        + "但实际期望 −10 ~ −19 bps —— 它们跌超 10% 的概率同样是 4–6 倍。"
+        + "共性是「会动」，不是「会涨」。",
+  },
+  {
+    title: "短线的天花板低于成本",
+    body: "四轮短线搜索共 1300 个格子，最高超额 41 bps（且该格为机械均值回复，不可交易）。"
+        + "往返成本：单票 2000 元 76 bps / 5000 元 46 bps / 2 万元 26 bps。"
+        + "任何资金档位下都覆盖不了。",
+  },
+];
+
+const CAVEATS = [
+  ["分散度不足", "该因子超额来自整层约 250 只股票的平均效应，个股信噪比约 1:15。持仓 20 只时 t 仅 1.22。需 50 只以上，对应本金 10 万以上。"],
+  ["主因子代理期", "滚动缓存未满 60 天时，用当日成交额代理 60 日均额。通过验证的是后者。"],
+  ["样本期为下行市场", "全市场 5 日平均收益 −14 bps，20 日 −15 bps。结论在牛市中可能不同。"],
+  ["只有日线数据", "分钟级、财报、股东、融资融券均未接入。盘中主动买卖净量未验证（日频代理 625 格最高 +17 bps）。"],
+  ["行业维度缺失", "同花顺行业接口拉取失败，行业集中度检查暂未生效。"],
+  ["搜索次数偏差", "2170 个格子中挑出的最优解，本身带搜索偏差。样本外验证已做，但实盘仍需影子交易校准。"],
+];
+
+function validatedCard() {
+  const rules = VALIDATED.rules.map((r, i) =>
+    `<div class="kv-row"><span class="kv-key">${i + 1}</span><span class="kv-val">${r}</span></div>`).join("");
+  const rows = VALIDATED.metrics.map(m =>
+    `<tr><td>${esc(m[0])}</td><td class="num">${m[1]}</td>
+     <td class="num">${esc(m[2])}</td>
+     <td><span class="tag ${m[3] === "ok" ? "tag-ok" : "tag-warn"}">${m[3] === "ok" ? "通过" : "注意"}</span></td></tr>`).join("");
+  return `<h3 class="card-title">规则</h3><div class="kv-list">${rules}</div>
+    <h3 class="card-title" style="margin-top:18px">验证结果</h3>
+    <div class="table-wrap"><table class="tbl">
+      <thead><tr><th>检验</th><th class="num">数值</th><th class="num">统计量</th><th>判定</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`;
+}
+
+function roundsTable() {
+  const rows = ROUNDS.map(r =>
+    `<tr>
+      <td class="num">${r.n}</td>
+      <td>${esc(r.name)}</td>
+      <td class="dim">${esc(r.vars)}</td>
+      <td class="num">${r.cells}</td>
+      <td>${esc(r.res)}</td>
+      <td><span class="tag ${r.ok ? "tag-ok" : "tag-muted"}">${r.ok ? "有产出" : "无"}</span></td>
+    </tr>`).join("");
+  const total = ROUNDS.reduce((a, b) => a + b.cells, 0);
+  return `<div class="table-wrap"><table class="tbl">
+      <thead><tr><th class="num">轮</th><th>方向</th><th>变量</th>
+        <th class="num">格子</th><th>结果</th><th>判定</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr><td colspan="3">合计</td><td class="num">${total}</td>
+        <td colspan="2">通过 1 个</td></tr></tfoot>
+    </table></div>
+    <p class="page-note">
+      每轮均预注册搜索空间与判据后再跑，Bonferroni 修正门槛 t &gt; 3.3 ~ 4.2，事后未放宽。
+      t 值按调仓期计算而非样本数 —— 同期内个股共享市场 beta，用样本数会严重高估显著性。
+    </p>`;
+}
+
 (async function () {
   buildChrome("backtest.html");
   stampLastRun();
 
-  const bt = await loadJson("backtest_stats.json");
+  panel("已验证配置", () => {
+    document.getElementById("validated").innerHTML = validatedCard();
+  });
 
-  if (!bt || bt.error) {
-    document.getElementById("metrics").innerHTML =
-      emptyState("尚无回测结果", "需要先积累已平仓的交易记录，指标才能计算");
-    document.getElementById("curve").innerHTML =
-      emptyState("暂无净值曲线", "首笔平仓后自动开始绘制");
-    document.getElementById("weekly").innerHTML = "";
+  panel("搜索地图", () => {
+    document.getElementById("rounds").innerHTML = roundsTable();
+  });
+
+  panel("稳定结论", () => {
+    document.getElementById("findings").innerHTML = FINDINGS.map(f =>
+      `<div class="card"><h3 class="card-title">${esc(f.title)}</h3>
+       <p style="margin:0">${f.body}</p></div>`).join("");
+  });
+
+  panel("已知问题", () => {
+    document.getElementById("caveats").innerHTML =
+      `<div class="kv-list">${CAVEATS.map(c =>
+        `<div class="kv-row"><span class="kv-key">${esc(c[0])}</span>
+         <span class="kv-val">${esc(c[1])}</span></div>`).join("")}</div>`;
+  });
+
+  const data = await loadJson("backtest.json");
+  if (!data) {
+    document.getElementById("live").innerHTML =
+      emptyState("尚无线上回测结果", "backtest.json 生成后会显示在这里");
+    document.getElementById("live-meta").textContent = "未生成";
     return;
   }
 
-  panel("指标", () => {
+  panel("线上回测", () => {
+    const m = data.metrics || data;
+    const pick = (...ks) => { for (const k of ks) if (m[k] !== undefined) return m[k]; return null; };
     const cards = [
-      { label: "年化收益率", value: fmt.pct(bt.annualized_return, 1), cls: fmt.dirClass(bt.annualized_return) },
-      { label: "最大回撤", value: fmt.pct(bt.max_drawdown, 1), cls: "down" },
-      { label: "胜率", value: fmt.pct(bt.win_rate, 1) },
-      { label: "盈亏比", value: bt.profit_loss_ratio == null ? "—" : fmt.num(bt.profit_loss_ratio, 2) },
-      { label: "夏普比率", value: fmt.num(bt.sharpe_ratio, 2) },
-      { label: "最大连续亏损", value: (bt.max_consecutive_losses ?? "—") + " 笔" },
-      { label: "总交易笔数", value: bt.total_trades ?? "—" },
+      ["交易笔数", pick("n_trades", "交易次数", "完整交易笔数"), ""],
+      ["单笔净收益", pick("mean_net_return_bps", "平均单笔收益率"), "bps"],
+      ["t 统计量", pick("tstat", "t"), ""],
+      ["胜率", pick("win_rate", "胜率"), ""],
+      ["年化", pick("cagr", "年化"), ""],
+      ["最大回撤", pick("max_drawdown", "最大回撤"), ""],
     ];
-    document.getElementById("metrics").innerHTML = cards.map(c => `<div class="metric">
-      <div class="metric-label">${esc(c.label)}</div>
-      <div class="metric-value ${c.cls || ""}">${esc(c.value)}</div>
-    </div>`).join("");
-  });
-
-  panel("净值曲线", () => {
-    const curve = (bt.equity_curve || []).map(p => ({ x: p.close_date, y: p.equity }));
-    renderCurve(document.getElementById("curve"), curve, {
-      label: "账户净值曲线",
-      yFormat: v => (v >= 10000 ? (v / 10000).toFixed(1) + "万" : v.toFixed(0)),
-    });
-    const meta = document.getElementById("curve-meta");
-    if (curve.length) meta.textContent = `${curve[0].x} 至 ${curve[curve.length - 1].x}`;
-  });
-
-  panel("周收益分布", () => {
-    const el = document.getElementById("weekly");
-    const dist = bt.weekly_pnl_distribution || {};
-    const weeks = Object.keys(dist).sort();
-    if (!weeks.length) { el.innerHTML = emptyState("暂无周度数据", ""); return; }
-    const peak = Math.max(...weeks.map(w => Math.abs(dist[w]))) || 1;
-    el.innerHTML = weeks.map(w => {
-      const v = dist[w];
-      const cls = fmt.dirClass(v);
-      return `<div class="bar-row">
-        <span class="bar-name" style="font-family:var(--font-mono);font-size:12px">${esc(w)}</span>
-        <div class="bar-track"><div class="bar-fill ${cls}" style="width:${((Math.abs(v) / peak) * 100).toFixed(1)}%;background:var(--${v >= 0 ? "up" : "down"})"></div></div>
-        <span class="bar-meta ${cls}">${v >= 0 ? "+" : "−"}${fmt.num(Math.abs(v), 0)}</span>
-      </div>`;
-    }).join("");
+    document.getElementById("live-meta").textContent = data.label || data.strategy || "";
+    document.getElementById("live").innerHTML =
+      `<div class="grid cols-3">${cards.map(c =>
+        `<div class="card"><h3 class="card-title">${esc(c[0])}</h3>
+         <div class="score-value" style="font-size:1.6rem">
+           ${c[1] === null ? "—" : (typeof c[1] === "number" ? fmt.num(c[1], 2) : esc(String(c[1])))}
+           <span class="score-of">${esc(c[2])}</span>
+         </div></div>`).join("")}</div>
+       <div class="card" style="margin-top:12px">
+         <p class="page-note" style="margin:0">
+           读这些数字的顺序：先看<strong>交易笔数</strong>（少于 300 笔后面都不用看），
+           再看<strong>单笔净收益</strong>（最抗自欺，不受资金曲线和仓位管理影响），
+           最后才是年化和回撤。
+         </p>
+       </div>`;
   });
 })();
 </script>
+
+<style>
+.tbl td.num, .tbl th.num { text-align:right; font-variant-numeric:tabular-nums; }
+.tbl td.dim { opacity:.65; font-size:.9em; }
+.tbl tfoot td { font-weight:600; border-top:1px solid var(--rule,#d8d4cc); }
+.kv-row { display:flex; gap:12px; padding:4px 0; align-items:baseline; }
+.kv-key { opacity:.7; min-width:6.5em; flex-shrink:0; }
+.kv-val { flex:1; }
+.table-wrap { overflow-x:auto; }
+</style>
 </body>
 </html>
