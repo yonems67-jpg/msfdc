@@ -25,11 +25,12 @@
   <div class="page-head">
     <h2 class="page-title">信号与风险</h2>
     <p class="page-note">
-      两个池子互不混用：<strong>建仓候选</strong>按实测期望值排序；
-      <strong>爆发观察</strong>是大涨启动率高但期望为负的高波动票，只记录不建仓。
+      低成交额策略，持有 60 个交易日到期换仓。
+      风险分档由期望值排位与极端档数量共同决定，高风险仅观察不建仓。
     </p>
   </div>
 
+  <section class="grid cols-3" id="overview"></section>
   <section id="alerts"></section>
 
   <section class="section">
@@ -42,25 +43,10 @@
 
   <section class="section">
     <div class="section-head">
-      <h3 class="section-title">爆发观察 · 不建仓</h3>
+      <h3 class="section-title">高风险 · 仅观察</h3>
       <span class="section-meta" id="watch-meta">—</span>
     </div>
-    <div class="card" style="margin-bottom:12px">
-      <p class="page-note" style="margin:0">
-        这组的大涨启动率是基准的 4–6 倍，但三日实际期望 −10 ~ −19 bps ——
-        因为它们跌超 10% 的概率同样是 4–6 倍。共性是「会动」，不是「会涨」。
-        仅用于积累样本，不参与建仓。
-      </p>
-    </div>
     <div id="watch-list"></div>
-  </section>
-
-  <section class="section">
-    <div class="section-head">
-      <h3 class="section-title">期望分权重表</h3>
-      <span class="section-meta">权重即实测值，非主观设定</span>
-    </div>
-    <div class="card" id="weight-table"></div>
   </section>
 </main>
 
@@ -68,192 +54,181 @@
 
 <script src="./terminal.js"></script>
 <script>
-// 各变量五分档的三日实际平均收益（bps）。全样本基准 +7。
-const EXPECT_BPS = {
-  "流通市值":     [21, 11,  5,  2,  -1],
-  "均价偏离度":   [ 2, 16, 16, 11,  -8],
-  "换手率":       [11, 15, 15, 15, -19],
-  "距60日低点":   [ 3, 15, 16, 13, -10],
-  "20日波动率":   [11, 14, 14,  9, -10],
-  "当日振幅":     [12, 13, 14, 12, -14],
-  "20日涨幅":     [ 8, 12, 14, 13, -10],
-  "当日量能":     [11, 12, 14, 11, -11],
-  "60日涨幅":     [14, 13, 11,  9,  -9],
+const BASE_POS = 2.0;   // 基准单票仓位 %
+
+const RISK = {
+  low:  { label: "低风险", cls: "tag-ok",   mult: 1.0,  note: "基准仓位" },
+  mid:  { label: "中风险", cls: "tag-muted", mult: 0.7, note: "基准 × 0.7" },
+  high: { label: "高风险", cls: "tag-warn",  mult: 0,   note: "仅观察" },
 };
 
-const VAR_ZH = {
-  mv: "流通市值", vdev: "均价偏离度", turn: "换手率", dist_lo60: "距60日低点",
-  vol20: "20日波动率", amp: "当日振幅", ret20: "20日涨幅",
-  vspike: "当日量能", ret60: "60日涨幅",
-};
-
-function pickNum(o, keys, d) {
+function n_(o, keys, d) {
+  if (!o) return d === undefined ? null : d;
   for (const k of keys) {
     const v = o[k];
     if (typeof v === "number" && isFinite(v)) return v;
   }
-  return d;
+  return d === undefined ? null : d;
 }
-
-function quintileBar(q) {
-  if (q === null || q === undefined) return "";
-  let s = "";
-  for (let i = 0; i < 5; i++) {
-    s += `<span class="q-dot${i === Number(q) ? (i === 4 ? " is-worst" : " is-on") : ""}"></span>`;
+function s_(o, keys, d) {
+  if (!o) return d || "";
+  for (const k of keys) {
+    const v = o[k];
+    if (v !== undefined && v !== null && v !== "") return String(v);
   }
-  return `<span class="q-bar">${s}</span>`;
+  return d || "";
+}
+function row(label, val, digits, suffix, colorize) {
+  if (val === null || val === undefined) return "";
+  const cls = colorize ? (val > 0 ? "pos" : val < 0 ? "neg" : "") : "";
+  return `<div class="kv-row"><span class="kv-key">${label}</span>
+    <span class="kv-val num ${cls}">${fmt.num(val, digits)}${suffix || ""}</span></div>`;
 }
 
-function stockCard(s, kind) {
-  const code = esc(s.code || "");
-  const name = esc(s.name || "");
-  const exp = pickNum(s, ["expect_bps", "stock_score", "score"], 0);
-  const lift = pickNum(s, ["launch_lift"], 1);
-  const worst = pickNum(s, ["n_worst"], 0);
-  const q = s.quintiles || {};
+/**
+ * 风险分档：
+ *   低  期望值排前 1/3 且无变量落最差档
+ *   中  排中 1/3，或恰好 1 个变量落最差档
+ *   高  排后 1/3，或 2 个以上落最差档
+ */
+function assignRisk(list) {
+  const n = list.length;
+  const sorted = list.slice().sort((a, b) =>
+    n_(b, ["expect_bps", "stock_score"], 0) - n_(a, ["expect_bps", "stock_score"], 0));
+  const rankOf = new Map();
+  sorted.forEach((s, i) => rankOf.set(s, i));
 
-  const qrows = Object.keys(q).map(k =>
-    `<div class="kv-row">
-       <span class="kv-key">${esc(VAR_ZH[k] || k)}</span>
-       <span class="kv-val">${quintileBar(q[k])}
-         <span class="q-bps">${(EXPECT_BPS[VAR_ZH[k]] || [])[Number(q[k])] ?? ""} bps</span>
-       </span>
-     </div>`).join("");
+  return list.map(s => {
+    const r = rankOf.get(s);
+    const worst = n_(s, ["n_worst"], 0) || 0;
+    let lvl;
+    if (worst >= 2) lvl = "high";
+    else if (worst === 1) lvl = "mid";
+    else if (r < n / 3) lvl = "low";
+    else if (r < n * 2 / 3) lvl = "mid";
+    else lvl = "high";
+    return { s, lvl, rank: r };
+  });
+}
 
-  const pats = (s.patterns || s.matched_patterns || []);
-  const patHtml = pats.length
-    ? `<div class="tag-row">${pats.map(p => `<span class="tag tag-muted">${esc(p)}</span>`).join("")}</div>`
-    : "";
-
-  const badge = kind === "buy"
-    ? `<span class="tag ${exp >= 76 ? "tag-ok" : "tag-warn"}">期望 ${exp > 0 ? "+" : ""}${fmt.num(exp, 0)} bps</span>`
-    : `<span class="tag tag-warn">启动富集 ${fmt.num(lift, 2)}×</span>`;
-
-  return `<div class="card stock-card">
+function card(item) {
+  const { s, lvl } = item;
+  const R = RISK[lvl];
+  const amt = n_(s, ["core_amt"]);
+  const mv = n_(s, ["mv"]);
+  const pos = R.mult > 0 ? BASE_POS * R.mult : null;
+  return `<div class="card risk-${lvl}">
     <div class="stock-head">
-      <div>
-        <span class="stock-code">${code}</span>
-        <span class="stock-name">${name}</span>
-      </div>
-      ${badge}
+      <div><span class="stock-code">${esc(s_(s, ["code", "代码"]))}</span>
+        <span class="stock-name">${esc(s_(s, ["name", "名称"]))}</span></div>
+      <span class="tag ${R.cls}">${R.label}</span>
     </div>
     <div class="kv-list">
-      ${qrows}
-      ${worst > 0 ? `<div class="kv-row"><span class="kv-key">极端档</span><span class="kv-val neg">${worst} 个变量落在最差档</span></div>` : ""}
+      ${row("最新价", n_(s, ["close"]), 2)}
+      ${row("涨跌幅", n_(s, ["chg"]) !== null ? s.chg * 100 : null, 2, "%", true)}
+      ${amt !== null ? `<div class="kv-row"><span class="kv-key">60日均成交额</span>
+        <span class="kv-val num">${fmt.num(amt / 1e8, 3)} 亿</span></div>` : ""}
+      ${mv !== null ? `<div class="kv-row"><span class="kv-key">流通市值</span>
+        <span class="kv-val num">${fmt.num(mv / 1e8, 1)} 亿</span></div>` : ""}
+      ${row("换手率", n_(s, ["turn"]) !== null ? s.turn * 100 : null, 2, "%")}
+      ${row("20日涨幅", n_(s, ["ret20"]) !== null ? s.ret20 * 100 : null, 1, "%", true)}
+      ${s.sector && s.sector !== "未分类" ? `<div class="kv-row"><span class="kv-key">行业</span>
+        <span class="kv-val">${esc(s.sector)}</span></div>` : ""}
+      <div class="kv-row"><span class="kv-key">建议仓位</span>
+        <span class="kv-val">${pos !== null ? fmt.num(pos, 1) + "%" : R.note}</span></div>
     </div>
-    ${patHtml}
   </div>`;
 }
 
-function weightTable() {
-  const head = `<tr><th>变量</th><th class="num">档0</th><th class="num">档1</th>
-    <th class="num">档2</th><th class="num">档3</th><th class="num">档4</th><th>形态</th></tr>`;
-  const rows = Object.keys(EXPECT_BPS).map(k => {
-    const v = EXPECT_BPS[k];
-    const mono = k === "流通市值" ? "单调递减" : "最高档为负";
-    return `<tr><td>${esc(k)}</td>` +
-      v.map(x => `<td class="num ${x > 0 ? "pos" : "neg"}">${x > 0 ? "+" : ""}${x}</td>`).join("") +
-      `<td>${mono}</td></tr>`;
-  }).join("");
-  return `<p class="page-note" style="margin-top:0">
-      表中每个数字都是该分档在 122 万个股票-日样本上的三日实际平均收益，
-      全样本基准 +7 bps。期望分 = 各变量所在分档的 bps 之和 —— 不含任何主观权重。
-      规律：最高档一律为负；最优区间集中在档 1–2；只有流通市值单调。
-    </p>
-    <div class="table-wrap"><table class="tbl"><thead>${head}</thead><tbody>${rows}</tbody></table></div>`;
-}
-
-function alertBox(text, level) {
-  return `<div class="card alert alert-${level}"><p style="margin:0">${text}</p></div>`;
+function alertBox(t) {
+  return `<div class="card alert"><p style="margin:0">${t}</p></div>`;
 }
 
 (async function () {
   buildChrome("signals.html");
   stampLastRun();
 
-  panel("权重表", () => {
-    document.getElementById("weight-table").innerHTML = weightTable();
-  });
+  const dual = await loadJson("dual.json");
+  const B = (dual && dual.low_turnover) || {};
+  const all = B.buy || [];
+  const meta = B.meta || {};
 
-  const raw = await loadJson("signals.json");
-
-  if (!raw) {
+  if (!dual) {
     document.getElementById("buy-list").innerHTML =
       emptyState("尚无信号", "等定时任务运行完成后，这里会显示当日候选");
-    document.getElementById("watch-list").innerHTML = "";
     return;
   }
 
-  // 结构归一化：可能是 list，也可能是 {buy, launch_watch, meta}
-  let buy = [], watch = [], meta = {};
-  if (Array.isArray(raw)) {
-    buy = raw;
-  } else {
-    buy = raw.buy || raw.signals || [];
-    watch = raw.launch_watch || raw.watch || [];
-    meta = raw.meta || {};
-  }
+  const ranked = assignRisk(all);
+  const buy = ranked.filter(x => x.lvl !== "high")
+    .sort((a, b) => a.rank - b.rank);
+  const watch = ranked.filter(x => x.lvl === "high")
+    .sort((a, b) => a.rank - b.rank);
+
+  panel("概览", () => {
+    const cnt = { low: 0, mid: 0, high: 0 };
+    ranked.forEach(x => cnt[x.lvl]++);
+    const cards = [
+      ["低风险", cnt.low, "tag-ok"],
+      ["中风险", cnt.mid, "tag-muted"],
+      ["高风险", cnt.high, "tag-warn"],
+    ];
+    document.getElementById("overview").innerHTML = cards.map(c =>
+      `<div class="card"><h3 class="card-title">${esc(c[0])}
+        <span class="tag ${c[2]}">${c[1]} 只</span></h3>
+       <div class="big-num">${c[1]}</div></div>`).join("");
+  });
 
   panel("警示", () => {
     const box = [];
-    const warns = meta.warnings || [];
-    if (buy.length && buy.length < 30) {
+    if (all.length && all.length < 30) {
       box.push(alertBox(
-        `建仓候选仅 <strong>${buy.length}</strong> 只，低于该因子生效所需的分散度。
-         回测显示持仓 20 只时 t 仅 1.22，个股信噪比约 1:15 ——
-         这个数量下拿到的结果基本是运气。`, "warn"));
+        `候选仅 <strong>${all.length}</strong> 只，分散度不足。
+         该策略的超额来自整层股票的平均效应，个股波动远大于因子差异，
+         需 50 只以上持仓才能实现。`));
     }
-    if (meta.bootstrapping || meta.amt_source === "today_proxy") {
+    if (meta.amt_source === "today_proxy" || meta.bootstrapping) {
       box.push(alertBox(
-        `主因子当前使用<strong>当日成交额代理 60 日均额</strong>。
-         通过样本外验证的是后者，不是前者。滚动缓存满 60 个交易日后自动切换。`, "warn"));
+        `主因子当前使用<strong>当日成交额代理 60 日均额</strong>，
+         滚动缓存满 60 个交易日后自动切换到真实值。此期间建议只做记录。`));
     }
-    const med = pickNum(meta, ["buy_median_expect_bps"], null);
-    if (med !== null && med < 76) {
-      box.push(alertBox(
-        `候选期望中位 ${fmt.num(med, 0)} bps，低于小资金往返成本 76 bps
-         （单票 2000 元）。三日持有下不足以覆盖成本，本页应作为过滤与排序使用。`, "warn"));
-    }
-    warns.forEach(w => box.push(alertBox(esc(w), "muted")));
+    if (B.error) box.push(alertBox(`策略运行失败：${esc(B.error)}`));
     document.getElementById("alerts").innerHTML = box.join("");
   });
 
   panel("建仓候选", () => {
     document.getElementById("buy-meta").textContent =
-      buy.length ? `${buy.length} 只 · 按实测期望排序` : "无";
+      buy.length ? `${buy.length} 只 · 持有 60 个交易日` : "无";
     document.getElementById("buy-list").innerHTML = buy.length
-      ? `<div class="grid cols-2">${buy.map(s => stockCard(s, "buy")).join("")}</div>`
-      : emptyState("今日无建仓候选", "所有标的都被硬性剔除或未达期望门槛");
+      ? `<div class="grid cols-2">${buy.map(card).join("")}</div>`
+      : emptyState("今日无建仓候选", "所有标的被硬性剔除或落入高风险档");
   });
 
-  panel("爆发观察", () => {
+  panel("高风险", () => {
     document.getElementById("watch-meta").textContent =
-      watch.length ? `${watch.length} 只 · 仅记录` : "无";
+      watch.length ? `${watch.length} 只 · 不建仓` : "无";
     document.getElementById("watch-list").innerHTML = watch.length
-      ? `<div class="grid cols-2">${watch.map(s => stockCard(s, "watch")).join("")}</div>`
-      : emptyState("今日无爆发观察标的", "");
+      ? `<div class="grid cols-2">${watch.map(card).join("")}</div>`
+      : emptyState("无高风险标的", "");
   });
 })();
 </script>
 
 <style>
-.q-bar { display:inline-flex; gap:3px; vertical-align:middle; }
-.q-dot { width:14px; height:6px; border-radius:3px; background:var(--rule,#d8d4cc); display:inline-block; }
-.q-dot.is-on { background:var(--accent,#3d7a5a); }
-.q-dot.is-worst { background:var(--neg,#b4483c); }
-.q-bps { margin-left:8px; font-variant-numeric:tabular-nums; opacity:.65; font-size:.85em; }
-.stock-card .stock-head { display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:10px; }
+.big-num { font-size:1.9rem; font-variant-numeric:tabular-nums; line-height:1.15; }
+.stock-head { display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:10px; }
 .stock-code { font-variant-numeric:tabular-nums; font-weight:600; }
-.stock-name { margin-left:8px; opacity:.75; }
-.tag-row { margin-top:10px; display:flex; flex-wrap:wrap; gap:6px; }
+.stock-name { margin-left:8px; opacity:.8; }
+.kv-row { display:flex; justify-content:space-between; gap:12px; padding:3px 0; align-items:baseline; }
+.kv-key { opacity:.7; flex-shrink:0; font-size:.92em; }
+.kv-val { text-align:right; }
+.kv-val.num { font-variant-numeric:tabular-nums; }
+.kv-val.pos { color:var(--pos,#3d7a5a); }
+.kv-val.neg { color:var(--neg,#b4483c); }
+.card.risk-low { border-left:3px solid var(--pos,#3d7a5a); }
+.card.risk-mid { border-left:3px solid var(--rule,#d8d4cc); }
+.card.risk-high { border-left:3px solid var(--warn,#b8862a); }
 .alert { border-left:3px solid var(--warn,#b8862a); }
-.alert-muted { border-left-color:var(--rule,#d8d4cc); opacity:.85; }
-.tbl td.num, .tbl th.num { text-align:right; font-variant-numeric:tabular-nums; }
-.tbl td.pos { color:var(--pos,#3d7a5a); }
-.tbl td.neg { color:var(--neg,#b4483c); }
-.kv-row { display:flex; justify-content:space-between; gap:12px; padding:3px 0; }
-.kv-key { opacity:.7; }
-.table-wrap { overflow-x:auto; }
 </style>
 </body>
 </html>
