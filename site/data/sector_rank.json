@@ -1,77 +1,77 @@
 [
   {
     "sector": "软件开发",
-    "score": 82.17,
+    "score": 91.25,
     "detail": {
       "资金净流入": 29.67,
-      "近5日涨幅": 12.5,
+      "近5日涨幅": 19.92,
       "板块涨跌家数比": 20.0,
       "龙头强度": 15.0,
-      "持续性": 5.0
+      "持续性": 6.67
     },
     "leader_strength": 1.0,
-    "persistence": 0.5,
+    "persistence": 0.667,
     "leader_name": "福昕软件",
     "leader_code": "sh688095"
   },
   {
     "sector": "IT服务",
-    "score": 81.37,
+    "score": 88.68,
     "detail": {
       "资金净流入": 29.33,
-      "近5日涨幅": 12.5,
+      "近5日涨幅": 18.15,
       "板块涨跌家数比": 19.53,
       "龙头强度": 15.0,
-      "持续性": 5.0
+      "持续性": 6.67
     },
     "leader_strength": 1.0,
-    "persistence": 0.5,
+    "persistence": 0.667,
     "leader_name": "立方控股",
     "leader_code": "bj920130"
   },
   {
-    "sector": "计算机设备",
-    "score": 80.83,
-    "detail": {
-      "资金净流入": 28.33,
-      "近5日涨幅": 12.5,
-      "板块涨跌家数比": 20.0,
-      "龙头强度": 15.0,
-      "持续性": 5.0
-    },
-    "leader_strength": 1.0,
-    "persistence": 0.5,
-    "leader_name": "维宏股份",
-    "leader_code": "sz300508"
-  },
-  {
     "sector": "文化传媒",
-    "score": 80.3,
+    "score": 86.91,
     "detail": {
       "资金净流入": 29.0,
-      "近5日涨幅": 12.5,
+      "近5日涨幅": 17.45,
       "板块涨跌家数比": 18.8,
       "龙头强度": 15.0,
-      "持续性": 5.0
+      "持续性": 6.67
     },
     "leader_strength": 1.0,
-    "persistence": 0.5,
+    "persistence": 0.667,
     "leader_name": "中文在线",
     "leader_code": "sz300364"
   },
   {
-    "sector": "通用设备",
-    "score": 79.46,
+    "sector": "游戏",
+    "score": 82.08,
     "detail": {
-      "资金净流入": 28.0,
-      "近5日涨幅": 12.5,
-      "板块涨跌家数比": 18.96,
+      "资金净流入": 27.67,
+      "近5日涨幅": 13.58,
+      "板块涨跌家数比": 19.17,
       "龙头强度": 15.0,
-      "持续性": 5.0
+      "持续性": 6.67
     },
     "leader_strength": 1.0,
-    "persistence": 0.5,
-    "leader_name": "海川智能",
-    "leader_code": "sz300720"
+    "persistence": 0.667,
+    "leader_name": "昆仑万维",
+    "leader_code": "sz300418"
+  },
+  {
+    "sector": "计算机设备",
+    "score": 81.37,
+    "detail": {
+      "资金净流入": 28.33,
+      "近5日涨幅": 11.37,
+      "板块涨跌家数比": 20.0,
+      "龙头强度": 15.0,
+      "持续性": 6.67
+    },
+    "leader_strength": 1.0,
+    "persistence": 0.667,
+    "leader_name": "维宏股份",
+    "leader_code": "sz300508"
   }
 ]
