@@ -24,7 +24,6 @@
 <main>
   <div class="page-head">
     <h2 class="page-title">市场雷达</h2>
-    <p class="page-note">市场评分为参考值，不作为开仓门槛。</p>
   </div>
 
   <section class="card">
@@ -49,7 +48,7 @@
   <section class="section">
     <div class="section-head">
       <h3 class="section-title">评分构成</h3>
-      <span class="section-meta">四项指标加权，合计 100 分</span>
+      <span class="section-meta">四项加权，合计100分</span>
     </div>
     <div class="grid cols-2" id="breakdown"></div>
   </section>
@@ -65,7 +64,6 @@ const REGIMES = [
   { name: "谨慎模式", range: "40 – 59",  cap: "20% – 30%",  lo: 40, hi: 60 },
   { name: "防守模式", range: "0 – 39",   cap: "5% – 15%",   lo: 0,  hi: 40 },
 ];
-
 const MAXES = { "指数趋势": 30, "赚钱效应": 30, "流动性": 20, "情绪偏好": 20 };
 
 function bandHtml(s) {
@@ -89,8 +87,7 @@ function bandHtml(s) {
     document.getElementById("score").textContent = "—";
     renderGauge(document.getElementById("gauge"), 0);
     document.getElementById("regimes").innerHTML = bandHtml(null);
-    document.getElementById("breakdown").innerHTML =
-      emptyState("尚无市场评分", "等定时任务首次运行完成后，这里会显示当日评分");
+    document.getElementById("breakdown").innerHTML = emptyState("尚无市场评分", "");
     return;
   }
 
@@ -101,8 +98,7 @@ function bandHtml(s) {
   });
 
   panel("仓位分档", () => {
-    document.getElementById("regimes").innerHTML =
-      bandHtml(Number(data.total_score) || 0);
+    document.getElementById("regimes").innerHTML = bandHtml(Number(data.total_score) || 0);
   });
 
   panel("评分构成", () => {
