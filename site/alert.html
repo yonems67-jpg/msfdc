@@ -128,35 +128,21 @@ function card(s, rank) {
   });
 })();
 </script>
-
 <style>
 .big-num { font-size:1.9rem; font-variant-numeric:tabular-nums; line-height:1.15; }
 .big-num .unit { font-size:.85rem; opacity:.6; margin-left:3px; }
 
-.alert-grid { display:grid; grid-template-columns:1fr; gap:10px; }
-@media (min-width:640px) { .alert-grid { grid-template-columns:1fr 1fr; } }
+.stock-head { display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:10px; }
+.stock-code { font-variant-numeric:tabular-nums; font-weight:600; }
+.stock-name { margin-left:6px; font-weight:600; }
+.stock-industry { margin-left:8px; opacity:.6; font-size:.85em; }
 
-.alert-card { border:1px solid var(--rule,#d8d4cc); border-radius:8px; padding:12px 14px; }
-.alert-top { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px; }
-.alert-rank { font-variant-numeric:tabular-nums; opacity:.5; font-size:.85em; }
-.alert-score { font-variant-numeric:tabular-nums; opacity:.7; font-size:.85em; }
-
-.alert-id-row { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
-.alert-code { font-variant-numeric:tabular-nums; font-weight:600; }
-.alert-name { font-weight:600; }
-.alert-industry { opacity:.6; font-size:.85em; }
-
-.alert-price-row { display:flex; align-items:baseline; gap:10px; margin-bottom:8px;
-  padding-bottom:8px; border-bottom:1px solid var(--rule,#d8d4cc); }
-.alert-price { font-size:1.5rem; font-variant-numeric:tabular-nums; font-weight:600; }
-.alert-chg { font-variant-numeric:tabular-nums; font-size:.95em; }
-.alert-chg.up { color:var(--up,#b4483c); }
-.alert-chg.down { color:var(--down,#3d7a5a); }
-
-.alert-detail { display:flex; flex-wrap:wrap; gap:10px 14px; font-size:.85em; opacity:.85; }
-.alert-detail b { font-variant-numeric:tabular-nums; font-weight:600; }
-.alert-detail b.up { color:var(--up,#b4483c); }
-.alert-detail b.down { color:var(--down,#3d7a5a); }
+.kv-row { display:flex; justify-content:space-between; gap:10px; padding:3px 0; align-items:baseline; }
+.kv-key { opacity:.7; flex-shrink:0; font-size:.9em; }
+.kv-val { text-align:right; }
+.kv-val.num { font-variant-numeric:tabular-nums; }
+.kv-val.up { color:var(--up,#b4483c); }
+.kv-val.down { color:var(--down,#3d7a5a); }
 </style>
 </body>
 </html>
