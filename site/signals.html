@@ -28,11 +28,11 @@
 
   <section class="section">
     <div class="section-head">
-      <h3 class="section-title">综合打分 TOP20</h3>
-      <span class="section-meta" id="list-meta">—</span>
+      <h3 class="section-title">修订四条规则 · 综合打分 TOP20</h3>
+      <span class="section-meta" id="rule-meta">—</span>
     </div>
     <div class="table-wrap">
-      <table class="tbl" id="rank-table">
+      <table class="tbl" id="rule-table">
         <thead>
           <tr>
             <th>排名</th><th>代码</th><th>名称</th>
@@ -40,9 +40,17 @@
             <th>行业</th><th class="num">综合得分</th>
           </tr>
         </thead>
-        <tbody id="rank-body"></tbody>
+        <tbody id="rule-body"></tbody>
       </table>
     </div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <h3 class="section-title">60日低成交额策略</h3>
+      <span class="section-meta" id="lt-meta">—</span>
+    </div>
+    <div id="lt-list"></div>
   </section>
 </main>
 
@@ -67,7 +75,8 @@ function s_(o, keys, d) {
   return d || "";
 }
 
-function row(s, rank) {
+/* ---- 修订四条规则 TOP20 ---- */
+function ruleRow(s, rank) {
   const price = n_(s, ["最新价"]);
   const hi = n_(s, ["历史最高价", "hist_high"]);
   const score = n_(s, ["综合得分", "score"]);
@@ -82,34 +91,101 @@ function row(s, rank) {
   </tr>`;
 }
 
+/* ---- 60日低成交额策略：风险高中低分档 ---- */
+const BASE_POS = 2.0;
+const RISK = {
+  low:  { label: "低风险", cls: "tag-ok",    mult: 1.0 },
+  mid:  { label: "中风险", cls: "tag-muted", mult: 0.7 },
+  high: { label: "高风险", cls: "tag-warn",  mult: 0 },
+};
+function assignRisk(list) {
+  const n = list.length;
+  const sorted = list.slice().sort((a, b) =>
+    n_(b, ["expect_bps", "stock_score"]) - n_(a, ["expect_bps", "stock_score"]));
+  const rankOf = new Map();
+  sorted.forEach((s, i) => rankOf.set(s, i));
+  return list.map(s => {
+    const r = rankOf.get(s);
+    const worst = n_(s, ["n_worst"]) || 0;
+    let lvl;
+    if (worst >= 2) lvl = "high";
+    else if (worst === 1) lvl = "mid";
+    else if (r < n / 3) lvl = "low";
+    else if (r < n * 2 / 3) lvl = "mid";
+    else lvl = "high";
+    return { s, lvl, rank: r };
+  });
+}
+function ltCard(item) {
+  const { s, lvl } = item;
+  const R = RISK[lvl];
+  const amt = n_(s, ["core_amt"]);
+  const pos = R.mult > 0 ? BASE_POS * R.mult : null;
+  return `<div class="card mini risk-${lvl}">
+    <div class="stock-head">
+      <div><span class="stock-code">${esc(s_(s, ["code","代码"]))}</span>
+        <span class="stock-name">${esc(s_(s, ["name","名称"]))}</span></div>
+      <span class="tag ${R.cls}">${R.label}</span>
+    </div>
+    <div class="kv-list">
+      <div class="kv-row"><span class="kv-key">最新价</span>
+        <span class="kv-val num">${fmt.num(n_(s,["close"]),2)}</span></div>
+      ${amt!==null?`<div class="kv-row"><span class="kv-key">60日均成交额</span>
+        <span class="kv-val num">${fmt.num(amt/1e8,3)} 亿</span></div>`:""}
+      <div class="kv-row"><span class="kv-key">行业</span>
+        <span class="kv-val">${esc(s.sector||"未分类")}</span></div>
+      <div class="kv-row"><span class="kv-key">建议仓位</span>
+        <span class="kv-val">${pos!==null?fmt.num(pos,1)+"%":"—"}</span></div>
+    </div>
+  </div>`;
+}
+
 (async function () {
   buildChrome("signals.html");
   stampLastRun();
 
   const dual = await loadJson("dual.json");
-  const A = (dual && dual.momentum) || {};
-  let stocks = A.stocks || [];
 
-  // 按综合得分降序；无得分字段时退化为原有顺序
-  stocks = stocks.slice().sort((a, b) => {
-    const sa = n_(a, ["综合得分", "score"]) ?? -1;
-    const sb = n_(b, ["综合得分", "score"]) ?? -1;
-    return sb - sa;
-  }).slice(0, 20);
-
-  panel("列表", () => {
-    document.getElementById("list-meta").textContent = stocks.length
+  panel("修订四条规则", () => {
+    const A = (dual && dual.momentum) || {};
+    let stocks = (A.stocks || []).slice().sort((a, b) => {
+      const sa = n_(a, ["综合得分","score"]) ?? -1;
+      const sb = n_(b, ["综合得分","score"]) ?? -1;
+      return sb - sa;
+    }).slice(0, 20);
+    document.getElementById("rule-meta").textContent = stocks.length
       ? `${stocks.length} 只 · ${(dual && dual.update_date) || ""}` : "无";
-    document.getElementById("rank-body").innerHTML = stocks.length
-      ? stocks.map((s, i) => row(s, i + 1)).join("")
-      : `<tr><td colspan="7">${emptyState("今日无候选", A.fallback_status?.fallback_note || "")}</td></tr>`;
+    document.getElementById("rule-body").innerHTML = stocks.length
+      ? stocks.map((s, i) => ruleRow(s, i + 1)).join("")
+      : `<tr><td colspan="7">${emptyState("今日无候选", "")}</td></tr>`;
+  });
+
+  panel("60日低成交额策略", () => {
+    const B = (dual && dual.low_turnover) || {};
+    const all = B.buy || [];
+    const ranked = assignRisk(all).sort((a, b) => a.rank - b.rank);
+    document.getElementById("lt-meta").textContent = ranked.length
+      ? `${ranked.length} 只` : "无";
+    document.getElementById("lt-list").innerHTML = ranked.length
+      ? `<div class="grid cols-3">${ranked.map(ltCard).join("")}</div>`
+      : emptyState("今日无候选", "");
   });
 })();
 </script>
 
 <style>
-.table-wrap { overflow-x:auto; }
+.table-wrap { overflow-x:auto; margin-bottom:24px; }
 .tbl td.num, .tbl th.num { text-align:right; font-variant-numeric:tabular-nums; }
+.card.mini { padding:12px 14px; margin-bottom:10px; }
+.card.mini.risk-low { border-left:3px solid var(--pos,#3d7a5a); }
+.card.mini.risk-mid { border-left:3px solid var(--rule,#d8d4cc); }
+.card.mini.risk-high { border-left:3px solid var(--warn,#b8862a); }
+.stock-head { display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:8px; }
+.stock-code { font-variant-numeric:tabular-nums; font-weight:600; }
+.stock-name { margin-left:6px; opacity:.8; }
+.kv-row { display:flex; justify-content:space-between; gap:10px; padding:2px 0; align-items:baseline; }
+.kv-key { opacity:.7; flex-shrink:0; font-size:.9em; }
+.kv-val.num { font-variant-numeric:tabular-nums; }
 </style>
 </body>
 </html>
