@@ -1,18 +1,1 @@
-{
-  "halt_new_positions": false,
-  "daily_drawdown_check": {
-    "triggered": false,
-    "drawdown": 0.0
-  },
-  "weekly_drawdown_check": {
-    "triggered": false,
-    "drawdown": 0.0
-  },
-  "position_cap_override": null,
-  "stock_hard_stoploss_alerts": [],
-  "forbidden_behavior_reminders": [
-    "禁止对亏损持仓摊薄成本",
-    "禁止弱市（防守模式）强行交易",
-    "禁止在高位抱团股重仓博弈，规避踩踏跌停风险"
-  ]
-}
+{"halt_new_positions":false,"daily_drawdown_check":{"triggered":false,"drawdown":0.0},"weekly_drawdown_check":{"triggered":false,"drawdown":0.0},"position_cap_override":null,"stock_hard_stoploss_alerts":[],"forbidden_behavior_reminders":["禁止对亏损持仓摊薄成本","禁止弱市（防守模式）强行交易","禁止在高位抱团股重仓博弈，规避踩踏跌停风险"]}
