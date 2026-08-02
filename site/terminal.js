@@ -76,9 +76,9 @@ function esc(s) {
 const NAV = [
   { href: "index.html",     label: "市场雷达" },
   { href: "sectors.html",   label: "板块与选股" },
-  { href: "signals.html",   label: "信号与风险" },
+  { href: "signals.html",   label: "建仓候选" },
+  { href: "alert.html",     label: "启动前预警" },
   { href: "holdings.html",  label: "持仓监控" },
-  { href: "backtest.html",  label: "策略回测" },
   { href: "positions.html", label: "持仓录入" },
 ];
 
