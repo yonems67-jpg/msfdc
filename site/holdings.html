@@ -64,7 +64,7 @@ function holdCard(h) {
   let action = h.next_action || h.pending_exit;
   if (!action) action = left <= 0 ? "到期卖出" : `继续持有（剩 ${left} 日）`;
   const urgent = left <= 3 || /卖出|清仓/.test(action);
-  const pnlCls = pnl === null ? "" : (pnl > 0 ? "pos" : pnl < 0 ? "neg" : "");
+  const pnlCls = pnl === null ? "" : fmt.dirClass(pnl);
 
   return `<div class="card">
     <div class="stock-head">
@@ -120,7 +120,7 @@ function alertBox(t) {
       ["持仓只数", n, ""],
       ["合计仓位", n ? fmt.num(totalPct, 1) + "%" : "—", ""],
       ["平均盈亏率", avgPnl!==null ? (avgPnl>0?"+":"")+fmt.num(avgPnl*100,2)+"%" : "—",
-        avgPnl>0?"pos":avgPnl<0?"neg":""],
+        avgPnl===null?"":fmt.dirClass(avgPnl)],
     ];
     document.getElementById("overview").innerHTML = cards.map(c =>
       `<div class="card"><h3 class="card-title">${esc(c[0])}</h3>
@@ -151,8 +151,8 @@ function alertBox(t) {
 
 <style>
 .big-num { font-size:1.9rem; font-variant-numeric:tabular-nums; line-height:1.15; }
-.big-num.pos { color:var(--pos,#3d7a5a); }
-.big-num.neg { color:var(--neg,#b4483c); }
+.big-num.up { color:var(--up,#b4483c); }
+.big-num.down { color:var(--down,#3d7a5a); }
 .stock-head { display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:12px; }
 .stock-code { font-variant-numeric:tabular-nums; font-weight:600; }
 .stock-name { margin-left:8px; opacity:.8; }
@@ -161,8 +161,8 @@ function alertBox(t) {
 .live-cell { flex:1; }
 .live-label { font-size:.8em; opacity:.6; margin-bottom:2px; }
 .live-num { font-size:1.6rem; font-variant-numeric:tabular-nums; font-weight:600; }
-.live-num.pos { color:var(--pos,#3d7a5a); }
-.live-num.neg { color:var(--neg,#b4483c); }
+.live-num.up { color:var(--up,#b4483c); }
+.live-num.down { color:var(--down,#3d7a5a); }
 .kv-row { display:flex; justify-content:space-between; gap:12px; padding:3px 0; align-items:baseline; }
 .kv-key { opacity:.7; flex-shrink:0; font-size:.92em; }
 .kv-val.num { font-variant-numeric:tabular-nums; }
