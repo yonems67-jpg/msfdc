@@ -24,7 +24,6 @@
 <main>
   <div class="page-head">
     <h2 class="page-title">持仓监控</h2>
-    <p class="page-note">持有 60 个交易日到期换仓。「明日处理」是系统会怎么做，不是浮盈浮亏。</p>
   </div>
 
   <section class="grid cols-3" id="overview"></section>
@@ -63,7 +62,7 @@ function holdCard(h) {
   const shares = n_(h, ["shares", "持股数"]);
 
   let action = h.next_action || h.pending_exit;
-  if (!action) action = left <= 0 ? "到期卖出" : `继续持有（剩 ${left} 个交易日）`;
+  if (!action) action = left <= 0 ? "到期卖出" : `继续持有（剩 ${left} 日）`;
   const urgent = left <= 3 || /卖出|清仓/.test(action);
   const pnlCls = pnl === null ? "" : (pnl > 0 ? "pos" : pnl < 0 ? "neg" : "");
 
@@ -73,14 +72,20 @@ function holdCard(h) {
         <span class="stock-name">${esc(String(h.name || ""))}</span></div>
       <span class="tag ${urgent ? "tag-warn" : "tag-muted"}">${esc(action)}</span>
     </div>
-    ${meter("持有进度", days, HOLD_DAYS, `${days} / ${HOLD_DAYS} 个交易日`)}
+    <div class="live-row">
+      <div class="live-cell">
+        <div class="live-label">现价</div>
+        <div class="live-num">${price!==null?fmt.num(price,2):"—"}</div>
+      </div>
+      <div class="live-cell">
+        <div class="live-label">盈亏率</div>
+        <div class="live-num ${pnlCls}">${pnl!==null?(pnl>0?"+":"")+fmt.num(pnl*100,2)+"%":"—"}</div>
+      </div>
+    </div>
+    ${meter("持有进度", days, HOLD_DAYS, `${days} / ${HOLD_DAYS} 日`)}
     <div class="kv-list" style="margin-top:10px">
       ${cost !== null ? `<div class="kv-row"><span class="kv-key">成本</span>
         <span class="kv-val num">${fmt.num(cost, 2)}</span></div>` : ""}
-      ${price !== null ? `<div class="kv-row"><span class="kv-key">现价</span>
-        <span class="kv-val num">${fmt.num(price, 2)}</span></div>` : ""}
-      ${pnl !== null ? `<div class="kv-row"><span class="kv-key">浮动盈亏</span>
-        <span class="kv-val num ${pnlCls}">${pnl > 0 ? "+" : ""}${fmt.num(pnl * 100, 2)}%</span></div>` : ""}
       ${shares !== null ? `<div class="kv-row"><span class="kv-key">持股</span>
         <span class="kv-val num">${fmt.num(shares, 0)}</span></div>` : ""}
       ${h.sector && h.sector !== "未分类" ? `<div class="kv-row"><span class="kv-key">行业</span>
@@ -100,41 +105,36 @@ function alertBox(t) {
   const data = await loadJson("positions.json");
   const list = Array.isArray(data) ? data
     : (data && (data.holdings || data.positions)) || [];
-  const meta = (data && data.meta) || {};
 
   panel("概览", () => {
     const n = list.length;
     const totalPct = list.reduce((a, h) =>
       a + (n_(h, ["position_pct", "weight", "仓位"], 0) || 0), 0);
-    const avgDays = n ? list.reduce((a, h) =>
-      a + (n_(h, ["holding_days", "持有天数"], 0) || 0), 0) / n : 0;
+    const avgPnl = n ? list.reduce((a, h) => {
+      const cost = n_(h, ["cost_price", "avg_cost", "成本价"]);
+      const price = n_(h, ["last_price", "close", "现价"]);
+      const pnl = (cost && price) ? (price / cost - 1) : (n_(h, ["pnl_pct"]) || 0);
+      return a + pnl;
+    }, 0) / n : null;
     const cards = [
-      ["持仓只数", n],
-      ["合计仓位", n ? fmt.num(totalPct, 1) + "%" : "—"],
-      ["平均持有", n ? fmt.num(avgDays, 0) + " 日" : "—"],
+      ["持仓只数", n, ""],
+      ["合计仓位", n ? fmt.num(totalPct, 1) + "%" : "—", ""],
+      ["平均盈亏率", avgPnl!==null ? (avgPnl>0?"+":"")+fmt.num(avgPnl*100,2)+"%" : "—",
+        avgPnl>0?"pos":avgPnl<0?"neg":""],
     ];
     document.getElementById("overview").innerHTML = cards.map(c =>
       `<div class="card"><h3 class="card-title">${esc(c[0])}</h3>
-       <div class="big-num">${typeof c[1] === "number" ? c[1] : esc(String(c[1]))}</div>
+       <div class="big-num ${c[2]}">${typeof c[1] === "number" ? c[1] : esc(String(c[1]))}</div>
       </div>`).join("");
   });
 
   panel("警示", () => {
     const box = [];
     if (list.length && list.length < 30) {
-      box.push(alertBox(
-        `当前持仓 <strong>${list.length}</strong> 只，分散度不足。
-         该策略的超额来自整层股票的平均效应，需 50 只以上持仓才能实现。`));
-    }
-    if (meta.amt_source === "today_proxy" || meta.bootstrapping) {
-      box.push(alertBox(
-        `主因子仍在代理模式（当日成交额代理 60 日均额），
-         建议此期间只做记录，不投真钱。`));
+      box.push(alertBox(`当前持仓 <strong>${list.length}</strong> 只，分散度不足。`));
     }
     if (!list.length) {
-      box.push(alertBox(
-        `当前空仓。首次运行建议先空跑三个月：每天出信号、记录、不下单，
-         等滚动缓存满 60 天、主因子切到真实值再考虑执行。`));
+      box.push(alertBox(`当前空仓。`));
     }
     document.getElementById("alerts").innerHTML = box.join("");
   });
@@ -144,22 +144,28 @@ function alertBox(t) {
       list.length ? `${list.length} 只` : "无";
     document.getElementById("holdings").innerHTML = list.length
       ? `<div class="grid cols-2">${list.map(holdCard).join("")}</div>`
-      : emptyState("当前无持仓", "在「持仓录入」页手动登记，或等待策略建仓");
+      : emptyState("当前无持仓", "");
   });
 })();
 </script>
 
 <style>
 .big-num { font-size:1.9rem; font-variant-numeric:tabular-nums; line-height:1.15; }
-.stock-head { display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:10px; }
+.big-num.pos { color:var(--pos,#3d7a5a); }
+.big-num.neg { color:var(--neg,#b4483c); }
+.stock-head { display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:12px; }
 .stock-code { font-variant-numeric:tabular-nums; font-weight:600; }
 .stock-name { margin-left:8px; opacity:.8; }
+.live-row { display:flex; gap:16px; margin-bottom:12px; padding:10px 0;
+  border-top:1px solid var(--rule,#d8d4cc); border-bottom:1px solid var(--rule,#d8d4cc); }
+.live-cell { flex:1; }
+.live-label { font-size:.8em; opacity:.6; margin-bottom:2px; }
+.live-num { font-size:1.6rem; font-variant-numeric:tabular-nums; font-weight:600; }
+.live-num.pos { color:var(--pos,#3d7a5a); }
+.live-num.neg { color:var(--neg,#b4483c); }
 .kv-row { display:flex; justify-content:space-between; gap:12px; padding:3px 0; align-items:baseline; }
 .kv-key { opacity:.7; flex-shrink:0; font-size:.92em; }
-.kv-val { text-align:right; }
 .kv-val.num { font-variant-numeric:tabular-nums; }
-.kv-val.pos { color:var(--pos,#3d7a5a); }
-.kv-val.neg { color:var(--neg,#b4483c); }
 .alert { border-left:3px solid var(--warn,#b8862a); }
 </style>
 </body>
