@@ -33,20 +33,7 @@
       <h3 class="section-title">强预警</h3>
       <span class="section-meta" id="strong-meta">—</span>
     </div>
-    <div class="table-wrap">
-      <table class="tbl" id="strong-table">
-        <thead>
-          <tr>
-            <th>排名</th><th>代码</th><th>名称</th>
-            <th class="num">最新价</th><th class="num">今日涨跌幅</th>
-            <th class="num">近5日涨幅</th><th class="num">近20日波动率</th>
-            <th class="num">近5日上涨天数</th><th class="num">量能倍数</th>
-            <th>行业</th><th class="num">得分</th>
-          </tr>
-        </thead>
-        <tbody id="strong-body"></tbody>
-      </table>
-    </div>
+    <div id="strong-list"></div>
   </section>
 
   <section class="section">
@@ -54,20 +41,7 @@
       <h3 class="section-title">预警</h3>
       <span class="section-meta" id="normal-meta">—</span>
     </div>
-    <div class="table-wrap">
-      <table class="tbl" id="normal-table">
-        <thead>
-          <tr>
-            <th>排名</th><th>代码</th><th>名称</th>
-            <th class="num">最新价</th><th class="num">今日涨跌幅</th>
-            <th class="num">近5日涨幅</th><th class="num">近20日波动率</th>
-            <th class="num">近5日上涨天数</th><th class="num">量能倍数</th>
-            <th>行业</th><th class="num">得分</th>
-          </tr>
-        </thead>
-        <tbody id="normal-body"></tbody>
-      </table>
-    </div>
+    <div id="normal-list"></div>
   </section>
 </main>
 
@@ -84,26 +58,34 @@ function n_(o, keys) {
   return null;
 }
 
-function row(s, rank) {
+function card(s, rank) {
   const chg = n_(s, ["今日涨跌幅"]);
   const ret5 = n_(s, ["近5日涨幅"]);
   const vol20 = n_(s, ["近20日波动率"]);
   const updays = s["近5日上涨天数"];
   const vspike = n_(s, ["量能倍数"]);
   const score = n_(s, ["综合得分"]);
-  return `<tr>
-    <td class="num">${rank}</td>
-    <td class="num">${esc(String(s["代码"]||""))}</td>
-    <td>${esc(String(s["名称"]||""))}</td>
-    <td class="num">${fmt.num(n_(s,["最新价"]),2)}</td>
-    <td class="num ${fmt.dirClass(chg)}">${fmt.num(chg,2)}%</td>
-    <td class="num ${fmt.dirClass(ret5)}">${ret5!==null?fmt.num(ret5,2)+"%":"—"}</td>
-    <td class="num">${vol20!==null?fmt.num(vol20,2)+"%":"—"}</td>
-    <td class="num">${updays!==null&&updays!==undefined?updays:"—"}</td>
-    <td class="num">${vspike!==null?fmt.num(vspike,2):"—"}</td>
-    <td>${esc(String(s["行业"]||"未分类"))}</td>
-    <td class="num">${score!==null?fmt.num(score,1):"—"}</td>
-  </tr>`;
+  return `<div class="alert-card">
+    <div class="alert-top">
+      <span class="alert-rank">${rank}</span>
+      <span class="alert-score">${score!==null?fmt.num(score,1)+"分":"—"}</span>
+    </div>
+    <div class="alert-id-row">
+      <span class="alert-code">${esc(String(s["代码"]||""))}</span>
+      <span class="alert-name">${esc(String(s["名称"]||""))}</span>
+      <span class="alert-industry">${esc(String(s["行业"]||"未分类"))}</span>
+    </div>
+    <div class="alert-price-row">
+      <span class="alert-price">${fmt.num(n_(s,["最新价"]),2)}</span>
+      <span class="alert-chg ${fmt.dirClass(chg)}">${chg>0?"+":""}${fmt.num(chg,2)}%</span>
+    </div>
+    <div class="alert-detail">
+      <span>近5日 <b class="${fmt.dirClass(ret5)}">${ret5!==null?(ret5>0?"+":"")+fmt.num(ret5,2)+"%":"—"}</b></span>
+      <span>波动率 <b>${vol20!==null?fmt.num(vol20,2)+"%":"—"}</b></span>
+      <span>上涨天数 <b>${updays!==null&&updays!==undefined?updays:"—"}</b></span>
+      <span>量能 <b>${vspike!==null?fmt.num(vspike,2)+"x":"—"}</b></span>
+    </div>
+  </div>`;
 }
 
 (async function () {
@@ -130,16 +112,16 @@ function row(s, rank) {
 
   panel("强预警列表", () => {
     document.getElementById("strong-meta").textContent = strong.length ? `${strong.length} 只 · ${(data&&data.update_date)||""}` : "无";
-    document.getElementById("strong-body").innerHTML = strong.length
-      ? strong.map((s,i) => row(s,i+1)).join("")
-      : `<tr><td colspan="11">${emptyState("当前无标的", "")}</td></tr>`;
+    document.getElementById("strong-list").innerHTML = strong.length
+      ? `<div class="alert-grid">${strong.map((s,i) => card(s,i+1)).join("")}</div>`
+      : emptyState("当前无标的", "");
   });
 
   panel("预警列表", () => {
     document.getElementById("normal-meta").textContent = normal.length ? `${normal.length} 只` : "无";
-    document.getElementById("normal-body").innerHTML = normal.length
-      ? normal.map((s,i) => row(s,i+1)).join("")
-      : `<tr><td colspan="11">${emptyState("当前无标的", "")}</td></tr>`;
+    document.getElementById("normal-list").innerHTML = normal.length
+      ? `<div class="alert-grid">${normal.map((s,i) => card(s,i+1)).join("")}</div>`
+      : emptyState("当前无标的", "");
   });
 })();
 </script>
