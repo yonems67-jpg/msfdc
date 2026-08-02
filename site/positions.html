@@ -24,7 +24,6 @@
 <main>
   <div class="page-head">
     <h2 class="page-title">持仓录入</h2>
-    <p class="page-note">手动登记实际成交。影子模式只记录，不计入持仓与仓位。</p>
   </div>
 
   <section class="card">
@@ -148,8 +147,7 @@ async function submit() {
     document.getElementById("log-meta").textContent =
       list.length ? `${list.length} 条` : "无";
     if (!list.length) {
-      document.getElementById("log").innerHTML =
-        emptyState("尚无记录", "提交后由 FC 写入 position_log.json");
+      document.getElementById("log").innerHTML = emptyState("尚无记录", "");
       return;
     }
     const rows = list.slice().reverse().slice(0, 100).map(r =>
