@@ -112,10 +112,9 @@ function card(s, rank) {
 
   const data = await loadJson("dual.json");
   const F = (data && data.precursor_factor_watch) || {};
-  const all = F.watch || [];
-  const strong = all.filter(s => s["档位"] === "强预警")
+  const strong = (F.strong_watch || []).slice()
     .sort((a,b) => (n_(b,["综合得分"])??-1) - (n_(a,["综合得分"])??-1));
-  const normal = all.filter(s => s["档位"] !== "强预警")
+  const normal = (F.normal_watch || []).slice()
     .sort((a,b) => (n_(b,["综合得分"])??-1) - (n_(a,["综合得分"])??-1));
 
   panel("概览", () => {
