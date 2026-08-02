@@ -77,11 +77,11 @@ function top5Card(s, rank) {
     </div>
     <div class="kv-list">
       ${netIn!==null?`<div class="kv-row"><span class="kv-key">净流入</span>
-        <span class="kv-val num ${netIn>0?"pos":"neg"}">${fmt.num(netIn,2)} 亿</span></div>`:""}
+        <span class="kv-val num ${fmt.dirClass(netIn)}">${fmt.num(netIn,2)} 亿</span></div>`:""}
       <div class="kv-row"><span class="kv-key">龙头股</span>
         <span class="kv-val">${esc(leaderName||"—")}</span></div>
       ${leaderChg!==null?`<div class="kv-row"><span class="kv-key">龙头涨跌幅</span>
-        <span class="kv-val num ${leaderChg>0?"pos":"neg"}">${leaderChg>0?"+":""}${fmt.num(leaderChg,2)}%</span></div>`:""}
+        <span class="kv-val num ${fmt.dirClass(leaderChg)}">${leaderChg>0?"+":""}${fmt.num(leaderChg,2)}%</span></div>`:""}
     </div>
   </div>`;
 }
@@ -139,8 +139,8 @@ function sectorCard(s, rank) {
 .kv-row { display:flex; justify-content:space-between; gap:12px; padding:3px 0; align-items:baseline; }
 .kv-key { opacity:.7; flex-shrink:0; font-size:.92em; }
 .kv-val.num { font-variant-numeric:tabular-nums; }
-.kv-val.pos { color:var(--pos,#3d7a5a); }
-.kv-val.neg { color:var(--neg,#b4483c); }
+.kv-val.up { color:var(--up,#b4483c); }
+.kv-val.down { color:var(--down,#3d7a5a); }
 </style>
 </body>
 </html>
