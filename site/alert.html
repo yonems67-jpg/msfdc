@@ -33,7 +33,18 @@
       <h3 class="section-title">强预警 · 连日≥5%</h3>
       <span class="section-meta" id="strict-meta">—</span>
     </div>
-    <div id="strict-list"></div>
+    <div class="table-wrap">
+      <table class="tbl" id="strict-table">
+        <thead>
+          <tr>
+            <th>状态</th><th>代码</th><th>名称</th>
+            <th class="num">最新价</th><th class="num">今日涨跌幅</th>
+            <th class="num">连续天数</th><th>行业</th>
+          </tr>
+        </thead>
+        <tbody id="strict-body"></tbody>
+      </table>
+    </div>
   </section>
 
   <section class="section">
@@ -41,7 +52,18 @@
       <h3 class="section-title">预警 · 评分优选TOP40</h3>
       <span class="section-meta" id="loose-meta">—</span>
     </div>
-    <div id="loose-list"></div>
+    <div class="table-wrap">
+      <table class="tbl" id="loose-table">
+        <thead>
+          <tr>
+            <th>排名</th><th>代码</th><th>名称</th>
+            <th class="num">最新价</th><th class="num">3日累计涨幅</th>
+            <th>行业</th><th class="num">得分</th>
+          </tr>
+        </thead>
+        <tbody id="loose-body"></tbody>
+      </table>
+    </div>
   </section>
 </main>
 
@@ -58,50 +80,33 @@ function n_(o, keys, d) {
   return d === undefined ? null : d;
 }
 
-function strictCard(s) {
+function strictRow(s) {
   const status = s["状态"] || "";
   const cls = status.includes("已确认") ? "tag-warn" : "tag-muted";
-  return `<div class="card mini">
-    <div class="stock-head">
-      <div><span class="stock-code">${esc(String(s["代码"]||""))}</span>
-        <span class="stock-name">${esc(String(s["名称"]||""))}</span></div>
-      <span class="tag ${cls}">${esc(status)}</span>
-    </div>
-    <div class="kv-list">
-      <div class="kv-row"><span class="kv-key">最新价</span>
-        <span class="kv-val num">${fmt.num(n_(s,["最新价"]),2)}</span></div>
-      <div class="kv-row"><span class="kv-key">今日涨跌幅</span>
-        <span class="kv-val num ${n_(s,["今日涨跌幅"])>0?"pos":"neg"}">${fmt.num(n_(s,["今日涨跌幅"]),2)}%</span></div>
-      <div class="kv-row"><span class="kv-key">连续达标天数</span>
-        <span class="kv-val num">${s["连续达标天数"]}</span></div>
-      <div class="kv-row"><span class="kv-key">行业</span>
-        <span class="kv-val">${esc(String(s["行业"]||"未分类"))}</span></div>
-      <div class="kv-row"><span class="kv-key">同行业共现</span>
-        <span class="kv-val num">${s["同行业共现数"]}</span></div>
-    </div>
-  </div>`;
+  const chg = n_(s,["今日涨跌幅"]);
+  return `<tr>
+    <td><span class="tag ${cls}">${esc(status)}</span></td>
+    <td class="num">${esc(String(s["代码"]||""))}</td>
+    <td>${esc(String(s["名称"]||""))}</td>
+    <td class="num">${fmt.num(n_(s,["最新价"]),2)}</td>
+    <td class="num ${fmt.dirClass(chg)}">${fmt.num(chg,2)}%</td>
+    <td class="num">${s["连续达标天数"]}</td>
+    <td>${esc(String(s["行业"]||"未分类"))}</td>
+  </tr>`;
 }
 
-function looseCard(s, rank) {
+function looseRow(s, rank) {
   const score = n_(s, ["综合得分"]);
-  return `<div class="card mini">
-    <div class="stock-head">
-      <div><span class="rank-badge">${rank}</span>
-        <span class="stock-code">${esc(String(s["代码"]||""))}</span>
-        <span class="stock-name">${esc(String(s["名称"]||""))}</span></div>
-      <span class="tag tag-muted">${score!==null?fmt.num(score,1)+" 分":"—"}</span>
-    </div>
-    <div class="kv-list">
-      <div class="kv-row"><span class="kv-key">最新价</span>
-        <span class="kv-val num">${fmt.num(n_(s,["最新价"]),2)}</span></div>
-      <div class="kv-row"><span class="kv-key">3日累计涨幅</span>
-        <span class="kv-val num pos">${fmt.num(n_(s,["3日累计涨幅"]),2)}%</span></div>
-      <div class="kv-row"><span class="kv-key">行业</span>
-        <span class="kv-val">${esc(String(s["行业"]||"未分类"))}</span></div>
-      <div class="kv-row"><span class="kv-key">同行业共现</span>
-        <span class="kv-val num">${s["同行业共现数"]}</span></div>
-    </div>
-  </div>`;
+  const cum = n_(s, ["3日累计涨幅"]);
+  return `<tr>
+    <td class="num">${rank}</td>
+    <td class="num">${esc(String(s["代码"]||""))}</td>
+    <td>${esc(String(s["名称"]||""))}</td>
+    <td class="num">${fmt.num(n_(s,["最新价"]),2)}</td>
+    <td class="num ${fmt.dirClass(cum)}">${fmt.num(cum,2)}%</td>
+    <td>${esc(String(s["行业"]||"未分类"))}</td>
+    <td class="num">${score!==null?fmt.num(score,1):"—"}</td>
+  </tr>`;
 }
 
 (async function () {
@@ -135,17 +140,22 @@ function looseCard(s, rank) {
   });
 
   panel("强预警列表", () => {
-    document.getElementById("strict-meta").textContent = sList.length ? `${sList.length} 只` : "无";
-    document.getElementById("strict-list").innerHTML = sList.length
-      ? `<div class="grid cols-3">${sList.map(strictCard).join("")}</div>`
-      : emptyState("当前无标的", "");
+    const sorted = sList.slice().sort((a,b) => {
+      const c = (b["连续达标天数"]||0) - (a["连续达标天数"]||0);
+      return c;
+    });
+    document.getElementById("strict-meta").textContent = sorted.length ? `${sorted.length} 只` : "无";
+    document.getElementById("strict-body").innerHTML = sorted.length
+      ? sorted.map(strictRow).join("")
+      : `<tr><td colspan="7">${emptyState("当前无标的", "")}</td></tr>`;
   });
 
   panel("预警列表", () => {
-    document.getElementById("loose-meta").textContent = lList.length ? `${lList.length} 只` : "无";
-    document.getElementById("loose-list").innerHTML = lList.length
-      ? `<div class="grid cols-3">${lList.map((s,i)=>looseCard(s,i+1)).join("")}</div>`
-      : emptyState("当前无标的", "");
+    const sorted = lList.slice().sort((a,b) => (n_(b,["综合得分"])??-1) - (n_(a,["综合得分"])??-1));
+    document.getElementById("loose-meta").textContent = sorted.length ? `${sorted.length} 只` : "无";
+    document.getElementById("loose-body").innerHTML = sorted.length
+      ? sorted.map((s,i) => looseRow(s,i+1)).join("")
+      : `<tr><td colspan="7">${emptyState("当前无标的", "")}</td></tr>`;
   });
 })();
 </script>
@@ -162,8 +172,10 @@ function looseCard(s, rank) {
 .kv-row { display:flex; justify-content:space-between; gap:10px; padding:2px 0; align-items:baseline; }
 .kv-key { opacity:.7; flex-shrink:0; font-size:.9em; }
 .kv-val.num { font-variant-numeric:tabular-nums; }
-.kv-val.pos { color:var(--pos,#3d7a5a); }
-.kv-val.neg { color:var(--neg,#b4483c); }
+.kv-val.up { color:var(--up,#b4483c); }
+.kv-val.down { color:var(--down,#3d7a5a); }
+.table-wrap { overflow-x:auto; }
+.tbl td.num, .tbl th.num { text-align:right; font-variant-numeric:tabular-nums; }
 </style>
 </body>
 </html>
