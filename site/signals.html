@@ -103,7 +103,7 @@ function momCard(item) {
       <div class="kv-row"><span class="kv-key">最新价</span>
         <span class="kv-val num">${fmt.num(n_(s,["最新价"]),2)}</span></div>
       <div class="kv-row"><span class="kv-key">涨跌幅</span>
-        <span class="kv-val num ${n_(s,["涨跌幅"])>0?"pos":"neg"}">${fmt.num(n_(s,["涨跌幅"]),2)}%</span></div>
+        <span class="kv-val num ${fmt.dirClass(n_(s,["涨跌幅"]))}">${fmt.num(n_(s,["涨跌幅"]),2)}%</span></div>
       <div class="kv-row"><span class="kv-key">行业</span>
         <span class="kv-val">${esc(s_(s,["行业"],"未分类"))}</span></div>
     </div>
@@ -163,8 +163,8 @@ function ltRow(s, rank) {
 .kv-row { display:flex; justify-content:space-between; gap:10px; padding:2px 0; align-items:baseline; }
 .kv-key { opacity:.7; flex-shrink:0; font-size:.9em; }
 .kv-val.num { font-variant-numeric:tabular-nums; }
-.kv-val.pos { color:var(--pos,#3d7a5a); }
-.kv-val.neg { color:var(--neg,#b4483c); }
+.kv-val.up { color:var(--up,#b4483c); }
+.kv-val.down { color:var(--down,#3d7a5a); }
 .table-wrap { overflow-x:auto; }
 .tbl td.num, .tbl th.num { text-align:right; font-variant-numeric:tabular-nums; }
 </style>
