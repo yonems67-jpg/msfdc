@@ -24,20 +24,14 @@
 <main>
   <div class="page-head">
     <h2 class="page-title">板块与选股</h2>
-    <p class="page-note">
-      动量选股：买涨幅 2–7%、量比 &gt;1.8、接近 20 日新高、行业相对强度为正的股票。
-      <strong>该策略未经回测验证</strong>，与「信号与风险」页的低成交额策略方向相反，作平行对照用。
-    </p>
   </div>
-
-  <section class="grid cols-3" id="overview"></section>
 
   <section class="section">
     <div class="section-head">
-      <h3 class="section-title">今日选出</h3>
-      <span class="section-meta" id="pick-meta">—</span>
+      <h3 class="section-title">领涨板块 TOP5</h3>
+      <span class="section-meta" id="top5-meta">—</span>
     </div>
-    <div id="picks"></div>
+    <div id="top5-list"></div>
   </section>
 
   <section class="section">
@@ -69,40 +63,26 @@ function s_(o, keys, d) {
   }
   return d || "";
 }
-function row(label, val, digits, suffix, colorize) {
-  if (val === null || val === undefined) return "";
-  const cls = colorize ? (val > 0 ? "pos" : val < 0 ? "neg" : "") : "";
-  return `<div class="kv-row"><span class="kv-key">${label}</span>
-    <span class="kv-val num ${cls}">${fmt.num(val, digits)}${suffix || ""}</span></div>`;
-}
 
-function stockCard(s) {
-  const flags = [];
-  if (s.ma_aligned === true) flags.push("均线多头");
-  if (s.volume_spike === true) flags.push("放量");
-  if (s.breakout === true) flags.push("近新高");
-  const amt = n_(s, ["成交额"]);
+function top5Card(s, rank) {
+  const leaderName = s_(s, ["领涨股", "leader_name", "leader"]);
+  const leaderChg = n_(s, ["领涨股-涨跌幅", "leader_chg"]);
+  const chg = n_(s, ["涨跌幅", "chg"]);
+  const netIn = n_(s, ["净流入", "net_inflow"]);
   return `<div class="card">
     <div class="stock-head">
-      <div><span class="stock-code">${esc(s_(s, ["代码", "code"]))}</span>
-        <span class="stock-name">${esc(s_(s, ["名称", "name"]))}</span></div>
-      ${s["操作建议"] ? `<span class="tag tag-muted">${esc(s["操作建议"])}</span>` : ""}
+      <div><span class="rank-badge">${rank}</span>
+        <span class="stock-name">${esc(s_(s, ["板块", "sector"], "—"))}</span></div>
+      <span class="tag ${chg>0?"tag-ok":"tag-warn"}">${chg!==null?(chg>0?"+":"")+fmt.num(chg,2)+"%":"—"}</span>
     </div>
     <div class="kv-list">
-      ${row("最新价", n_(s, ["最新价"]), 2)}
-      ${row("涨跌幅", n_(s, ["涨跌幅"]), 2, "%", true)}
-      ${row("预估换手", n_(s, ["预估全天换手率"]), 1, "%")}
-      ${row("量比", n_(s, ["量比"]), 2)}
-      ${row("振幅", n_(s, ["振幅"]), 2, "%")}
-      ${row("行业相对强度", n_(s, ["行业相对强度"]), 2, "%", true)}
-      ${amt !== null ? `<div class="kv-row"><span class="kv-key">成交额</span>
-        <span class="kv-val num">${fmt.num(amt / 1e8, 2)} 亿</span></div>` : ""}
-      ${s["行业"] && s["行业"] !== "未分类" ? `<div class="kv-row"><span class="kv-key">行业</span>
-        <span class="kv-val">${esc(s["行业"])}</span></div>` : ""}
-      ${row("建议仓位", n_(s, ["建议仓位"]), 1, "%")}
+      ${netIn!==null?`<div class="kv-row"><span class="kv-key">净流入</span>
+        <span class="kv-val num ${netIn>0?"pos":"neg"}">${fmt.num(netIn,2)} 亿</span></div>`:""}
+      <div class="kv-row"><span class="kv-key">龙头股</span>
+        <span class="kv-val">${esc(leaderName||"—")}</span></div>
+      ${leaderChg!==null?`<div class="kv-row"><span class="kv-key">龙头涨跌幅</span>
+        <span class="kv-val num ${leaderChg>0?"pos":"neg"}">${leaderChg>0?"+":""}${fmt.num(leaderChg,2)}%</span></div>`:""}
     </div>
-    ${flags.length ? `<div class="tag-row">${flags.map(f =>
-      `<span class="tag tag-warn">${esc(f)}</span>`).join("")}</div>` : ""}
   </div>`;
 }
 
@@ -118,9 +98,6 @@ function sectorCard(s, rank) {
       <span class="tag tag-muted">${fmt.num(s.score, 1)} 分</span>
     </div>
     <div class="kv-list">${rows}</div>
-    ${s.leader_name ? `<div class="kv-row" style="margin-top:6px">
-      <span class="kv-key">领涨股</span>
-      <span class="kv-val">${esc(s.leader_name)}</span></div>` : ""}
   </div>`;
 }
 
@@ -128,65 +105,39 @@ function sectorCard(s, rank) {
   buildChrome("sectors.html");
   stampLastRun();
 
-  const [dual, secRaw] = await Promise.all([
-    loadJson("dual.json"),
+  const [sectorRank, secRaw] = await Promise.all([
+    loadJson("sector_rank.json"),
     loadJson("sectors.json"),
   ]);
 
-  const A = (dual && dual.momentum) || {};
-  const stocks = A.stocks || [];
-  const fb = A.fallback_status || {};
-  const mk = (dual && dual.market) || {};
-
-  panel("概览", () => {
-    const cards = [
-      ["选出只数", stocks.length],
-      ["市场状态", (mk.market_status || "—") +
-        (mk.market_score !== undefined ? `（${fmt.num(mk.market_score, 1)}）` : "")],
-      ["降级档位", fb.tier_name ? `Tier ${fb.used_tier} · ${fb.tier_name}` : "—"],
-    ];
-    document.getElementById("overview").innerHTML = cards.map(c =>
-      `<div class="card"><h3 class="card-title">${esc(c[0])}</h3>
-       <div class="big-num">${typeof c[1] === "number" ? c[1] : esc(String(c[1]))}</div>
-      </div>`).join("");
+  panel("领涨板块", () => {
+    let list = Array.isArray(sectorRank) ? sectorRank : (sectorRank && (sectorRank.sectors || sectorRank.top_sectors)) || [];
+    list = list.slice(0, 5);
+    document.getElementById("top5-meta").textContent = list.length ? `${list.length} 个` : "无数据";
+    document.getElementById("top5-list").innerHTML = list.length
+      ? `<div class="grid cols-2">${list.map((s,i)=>top5Card(s,i+1)).join("")}</div>`
+      : emptyState("暂无板块数据", "");
   });
 
-  panel("选股", () => {
-    document.getElementById("pick-meta").textContent = stocks.length
-      ? `${stocks.length} 只 · ${(dual && dual.update_date) || ""}`
-      : "无";
-    document.getElementById("picks").innerHTML = stocks.length
-      ? `<div class="grid cols-2">${stocks.map(stockCard).join("")}</div>`
-      : emptyState("今日无选出",
-          fb.fallback_note || (A.error ? "运行失败：" + A.error : "条件串联后候选清零"));
-  });
-
-  panel("板块", () => {
+  panel("板块评分", () => {
     let list = [];
     if (Array.isArray(secRaw)) list = secRaw;
     else if (secRaw) list = secRaw.sectors || secRaw.top_sectors || [];
-    else if (dual && dual.sectors) list = dual.sectors;
-
-    document.getElementById("sector-meta").textContent =
-      list.length ? `${list.length} 个` : "无数据";
+    document.getElementById("sector-meta").textContent = list.length ? `${list.length} 个` : "无数据";
     document.getElementById("sectors").innerHTML = list.length
       ? `<div class="grid cols-2">${list.map((s, i) => sectorCard(s, i + 1)).join("")}</div>`
-      : emptyState("暂无板块数据", "行业板块一览接口为空时本模块会跳过");
+      : emptyState("暂无板块数据", "");
   });
 })();
 </script>
 
 <style>
-.big-num { font-size:1.8rem; font-variant-numeric:tabular-nums; line-height:1.15; }
 .rank-badge { display:inline-block; min-width:1.6em; text-align:center;
   font-variant-numeric:tabular-nums; opacity:.55; margin-right:6px; }
 .stock-head { display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:10px; }
-.stock-code { font-variant-numeric:tabular-nums; font-weight:600; }
-.stock-name { margin-left:6px; opacity:.8; font-weight:600; }
-.tag-row { margin-top:10px; display:flex; flex-wrap:wrap; gap:6px; }
+.stock-name { margin-left:0; opacity:.9; font-weight:600; }
 .kv-row { display:flex; justify-content:space-between; gap:12px; padding:3px 0; align-items:baseline; }
 .kv-key { opacity:.7; flex-shrink:0; font-size:.92em; }
-.kv-val { text-align:right; }
 .kv-val.num { font-variant-numeric:tabular-nums; }
 .kv-val.pos { color:var(--pos,#3d7a5a); }
 .kv-val.neg { color:var(--neg,#b4483c); }
