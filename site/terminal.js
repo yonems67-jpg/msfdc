@@ -77,7 +77,7 @@ const NAV = [
   { href: "index.html",     label: "市场雷达" },
   { href: "sectors.html",   label: "板块与选股" },
   { href: "signals.html",   label: "建仓候选" },
-  { href: "alert.html",     label: "启动前预警" },
+  { href: "alert.html",     label: "涨幅预警" },
   { href: "holdings.html",  label: "持仓监控" },
   { href: "positions.html", label: "持仓录入" },
 ];
@@ -110,7 +110,6 @@ function renderGauge(el, score) {
   const W = 320, H = 182, cx = 160, cy = 164, r = 128;
   const clamped = Math.max(0, Math.min(100, Number(score) || 0));
 
-  // 半圆从 180°（左）扫到 0°（右）
   const polar = (pct) => {
     const a = Math.PI * (1 - pct / 100);
     return [cx + r * Math.cos(a), cy - r * Math.sin(a)];
@@ -122,7 +121,6 @@ function renderGauge(el, score) {
       fill="none" stroke-linecap="butt" stroke-width="${width}" class="${cls}"/>`;
   };
 
-  // 底轨按四个档位分段，颜色对应各档风险等级
   const segs = [
     { from: 0,  to: 40,  color: "var(--down)" },
     { from: 40, to: 60,  color: "var(--warn)" },
@@ -131,17 +129,14 @@ function renderGauge(el, score) {
   ];
 
   let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="市场评分 ${clamped}">`;
-  // 底轨（浅）
   segs.forEach(s => {
     svg += arc(s.from, s.to, "", 12).replace('class=""', `stroke="${s.color}" opacity="0.16"`);
   });
-  // 已达成部分（实色）
   segs.forEach(s => {
     if (clamped <= s.from) return;
     const to = Math.min(clamped, s.to);
     svg += arc(s.from, to, "", 12).replace('class=""', `stroke="${s.color}" opacity="0.95"`);
   });
-  // 阈值刻度 40/60/80
   [40, 60, 80].forEach(t => {
     const [x1, y1] = polar(t);
     const inner = r - 10, outer = r + 10;
@@ -152,7 +147,6 @@ function renderGauge(el, score) {
     svg += `<text x="${(cx + (outer + 9) * Math.cos(a)).toFixed(2)}" y="${(cy - (outer + 5) * Math.sin(a)).toFixed(2)}"
       text-anchor="middle" class="curve-tick">${t}</text>`;
   });
-  // 指针
   const a = Math.PI * (1 - clamped / 100);
   svg += `<line x1="${cx}" y1="${cy}" x2="${(cx + (r - 22) * Math.cos(a)).toFixed(2)}"
     y2="${(cy - (r - 22) * Math.sin(a)).toFixed(2)}" stroke="var(--ink)" stroke-width="2.5" stroke-linecap="round"/>`;
@@ -182,7 +176,6 @@ function renderCurve(el, points, opts = {}) {
   const area = `${line} L ${X(points.length - 1).toFixed(1)} ${Y(min).toFixed(1)} L ${X(0).toFixed(1)} ${Y(min).toFixed(1)} Z`;
 
   let svg = `<svg viewBox="0 0 ${W} ${H}" class="curve" role="img" aria-label="${esc(opts.label || "曲线")}">`;
-  // 横向网格 + 左侧刻度
   for (let i = 0; i <= 4; i++) {
     const v = min + (max - min) * (i / 4);
     const y = Y(v);
@@ -192,7 +185,6 @@ function renderCurve(el, points, opts = {}) {
   }
   svg += `<path d="${area}" class="curve-area"/>`;
   svg += `<path d="${line}" class="curve-line"/>`;
-  // 首尾日期
   [0, points.length - 1].forEach(i => {
     svg += `<text x="${X(i).toFixed(1)}" y="${H - 8}" text-anchor="${i === 0 ? "start" : "end"}" class="curve-tick">${
       esc(points[i].x)}</text>`;
@@ -215,7 +207,6 @@ function meter(label, value, max, detail) {
   </div>`;
 }
 
-/* 把 breakdown 里的 detail 对象压成一行可读文字 */
 function detailLine(detail) {
   if (!detail || typeof detail !== "object") return "";
   return Object.entries(detail)
@@ -223,7 +214,6 @@ function detailLine(detail) {
     .join(" · ");
 }
 
-/* 操作提示 -> 徽标样式（A股：加仓偏红，减仓偏绿） */
 function actionBadge(action) {
   const a = String(action || "");
   let cls = "badge-hold";
