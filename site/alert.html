@@ -65,25 +65,28 @@ function card(s, rank) {
   const updays = s["近5日上涨天数"];
   const vspike = n_(s, ["量能倍数"]);
   const score = n_(s, ["综合得分"]);
-  return `<div class="alert-card">
-    <div class="alert-top">
-      <span class="alert-rank">${rank}</span>
-      <span class="alert-score">${score!==null?fmt.num(score,1)+"分":"—"}</span>
+  return `<div class="card">
+    <div class="stock-head">
+      <div>
+        <span class="stock-code">${esc(String(s["代码"]||""))}</span>
+        <span class="stock-name">${esc(String(s["名称"]||""))}</span>
+        <span class="stock-industry">${esc(String(s["行业"]||"未分类"))}</span>
+      </div>
+      <span class="tag tag-muted">${score!==null?fmt.num(score,1)+"分":"—"}</span>
     </div>
-    <div class="alert-id-row">
-      <span class="alert-code">${esc(String(s["代码"]||""))}</span>
-      <span class="alert-name">${esc(String(s["名称"]||""))}</span>
-      <span class="alert-industry">${esc(String(s["行业"]||"未分类"))}</span>
+    <div class="kv-row">
+      <span class="kv-key">排名 ${rank}</span>
+      <span class="kv-val num ${fmt.dirClass(chg)}">${fmt.num(n_(s,["最新价"]),2)}　${chg>0?"+":""}${fmt.num(chg,2)}%</span>
     </div>
-    <div class="alert-price-row">
-      <span class="alert-price">${fmt.num(n_(s,["最新价"]),2)}</span>
-      <span class="alert-chg ${fmt.dirClass(chg)}">${chg>0?"+":""}${fmt.num(chg,2)}%</span>
-    </div>
-    <div class="alert-detail">
-      <span>近5日 <b class="${fmt.dirClass(ret5)}">${ret5!==null?(ret5>0?"+":"")+fmt.num(ret5,2)+"%":"—"}</b></span>
-      <span>波动率 <b>${vol20!==null?fmt.num(vol20,2)+"%":"—"}</b></span>
-      <span>上涨天数 <b>${updays!==null&&updays!==undefined?updays:"—"}</b></span>
-      <span>量能 <b>${vspike!==null?fmt.num(vspike,2)+"x":"—"}</b></span>
+    <div class="kv-list">
+      <div class="kv-row"><span class="kv-key">近5日涨幅</span>
+        <span class="kv-val num ${fmt.dirClass(ret5)}">${ret5!==null?(ret5>0?"+":"")+fmt.num(ret5,2)+"%":"—"}</span></div>
+      <div class="kv-row"><span class="kv-key">近20日波动率</span>
+        <span class="kv-val num">${vol20!==null?fmt.num(vol20,2)+"%":"—"}</span></div>
+      <div class="kv-row"><span class="kv-key">近5日上涨天数</span>
+        <span class="kv-val num">${updays!==null&&updays!==undefined?updays:"—"}</span></div>
+      <div class="kv-row"><span class="kv-key">量能倍数</span>
+        <span class="kv-val num">${vspike!==null?fmt.num(vspike,2)+"x":"—"}</span></div>
     </div>
   </div>`;
 }
@@ -113,14 +116,14 @@ function card(s, rank) {
   panel("强预警列表", () => {
     document.getElementById("strong-meta").textContent = strong.length ? `${strong.length} 只 · ${(data&&data.update_date)||""}` : "无";
     document.getElementById("strong-list").innerHTML = strong.length
-      ? `<div class="alert-grid">${strong.map((s,i) => card(s,i+1)).join("")}</div>`
+      ? `<div class="grid cols-2">${strong.map((s,i) => card(s,i+1)).join("")}</div>`
       : emptyState("当前无标的", "");
   });
 
   panel("预警列表", () => {
     document.getElementById("normal-meta").textContent = normal.length ? `${normal.length} 只` : "无";
     document.getElementById("normal-list").innerHTML = normal.length
-      ? `<div class="alert-grid">${normal.map((s,i) => card(s,i+1)).join("")}</div>`
+      ? `<div class="grid cols-2">${normal.map((s,i) => card(s,i+1)).join("")}</div>`
       : emptyState("当前无标的", "");
   });
 })();
@@ -129,10 +132,31 @@ function card(s, rank) {
 <style>
 .big-num { font-size:1.9rem; font-variant-numeric:tabular-nums; line-height:1.15; }
 .big-num .unit { font-size:.85rem; opacity:.6; margin-left:3px; }
-.table-wrap { overflow-x:auto; margin-bottom:24px; }
-.tbl td.num, .tbl th.num { text-align:right; font-variant-numeric:tabular-nums; }
-.tbl td.up { color:var(--up,#b4483c); }
-.tbl td.down { color:var(--down,#3d7a5a); }
+
+.alert-grid { display:grid; grid-template-columns:1fr; gap:10px; }
+@media (min-width:640px) { .alert-grid { grid-template-columns:1fr 1fr; } }
+
+.alert-card { border:1px solid var(--rule,#d8d4cc); border-radius:8px; padding:12px 14px; }
+.alert-top { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px; }
+.alert-rank { font-variant-numeric:tabular-nums; opacity:.5; font-size:.85em; }
+.alert-score { font-variant-numeric:tabular-nums; opacity:.7; font-size:.85em; }
+
+.alert-id-row { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
+.alert-code { font-variant-numeric:tabular-nums; font-weight:600; }
+.alert-name { font-weight:600; }
+.alert-industry { opacity:.6; font-size:.85em; }
+
+.alert-price-row { display:flex; align-items:baseline; gap:10px; margin-bottom:8px;
+  padding-bottom:8px; border-bottom:1px solid var(--rule,#d8d4cc); }
+.alert-price { font-size:1.5rem; font-variant-numeric:tabular-nums; font-weight:600; }
+.alert-chg { font-variant-numeric:tabular-nums; font-size:.95em; }
+.alert-chg.up { color:var(--up,#b4483c); }
+.alert-chg.down { color:var(--down,#3d7a5a); }
+
+.alert-detail { display:flex; flex-wrap:wrap; gap:10px 14px; font-size:.85em; opacity:.85; }
+.alert-detail b { font-variant-numeric:tabular-nums; font-weight:600; }
+.alert-detail b.up { color:var(--up,#b4483c); }
+.alert-detail b.down { color:var(--down,#3d7a5a); }
 </style>
 </body>
 </html>
