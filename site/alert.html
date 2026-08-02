@@ -61,9 +61,14 @@ function n_(o, keys) {
 function card(s, rank) {
   const chg = n_(s, ["今日涨跌幅"]);
   const ret5 = n_(s, ["近5日涨幅"]);
-  const vol20 = n_(s, ["近20日波动率"]);
+  const ret20 = n_(s, ["近20日涨幅"]);
+  const ret60 = n_(s, ["近60日涨幅"]);
+  const vol20 = n_(s, ["波动率"]);
+  const distHi = n_(s, ["距60日高点"]);
+  const distLo = n_(s, ["距60日低点"]);
   const updays = s["近5日上涨天数"];
   const vspike = n_(s, ["量能倍数"]);
+  const volRatio = n_(s, ["20日60日量比"]);
   const score = n_(s, ["综合得分"]);
   return `<div class="card">
     <div class="stock-head">
@@ -81,12 +86,22 @@ function card(s, rank) {
     <div class="kv-list">
       <div class="kv-row"><span class="kv-key">近5日涨幅</span>
         <span class="kv-val num ${fmt.dirClass(ret5)}">${ret5!==null?(ret5>0?"+":"")+fmt.num(ret5,2)+"%":"—"}</span></div>
-      <div class="kv-row"><span class="kv-key">近20日波动率</span>
+      <div class="kv-row"><span class="kv-key">近20日涨幅</span>
+        <span class="kv-val num ${fmt.dirClass(ret20)}">${ret20!==null?(ret20>0?"+":"")+fmt.num(ret20,2)+"%":"—"}</span></div>
+      <div class="kv-row"><span class="kv-key">近60日涨幅</span>
+        <span class="kv-val num ${fmt.dirClass(ret60)}">${ret60!==null?(ret60>0?"+":"")+fmt.num(ret60,2)+"%":"—"}</span></div>
+      <div class="kv-row"><span class="kv-key">波动率</span>
         <span class="kv-val num">${vol20!==null?fmt.num(vol20,2)+"%":"—"}</span></div>
+      <div class="kv-row"><span class="kv-key">距60日高点</span>
+        <span class="kv-val num">${distHi!==null?fmt.num(distHi,2)+"%":"—"}</span></div>
+      <div class="kv-row"><span class="kv-key">距60日低点</span>
+        <span class="kv-val num">${distLo!==null?fmt.num(distLo,2)+"%":"—"}</span></div>
       <div class="kv-row"><span class="kv-key">近5日上涨天数</span>
         <span class="kv-val num">${updays!==null&&updays!==undefined?updays:"—"}</span></div>
       <div class="kv-row"><span class="kv-key">量能倍数</span>
         <span class="kv-val num">${vspike!==null?fmt.num(vspike,2)+"x":"—"}</span></div>
+      <div class="kv-row"><span class="kv-key">20日60日量比</span>
+        <span class="kv-val num">${volRatio!==null?fmt.num(volRatio,2):"—"}</span></div>
     </div>
   </div>`;
 }
@@ -128,6 +143,7 @@ function card(s, rank) {
   });
 })();
 </script>
+
 <style>
 .big-num { font-size:1.9rem; font-variant-numeric:tabular-nums; line-height:1.15; }
 .big-num .unit { font-size:.85rem; opacity:.6; margin-left:3px; }
