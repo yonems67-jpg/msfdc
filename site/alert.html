@@ -30,38 +30,42 @@
 
   <section class="section">
     <div class="section-head">
-      <h3 class="section-title">强预警 · 连日≥5%</h3>
-      <span class="section-meta" id="strict-meta">—</span>
+      <h3 class="section-title">强预警</h3>
+      <span class="section-meta" id="strong-meta">—</span>
     </div>
     <div class="table-wrap">
-      <table class="tbl" id="strict-table">
+      <table class="tbl" id="strong-table">
         <thead>
           <tr>
-            <th>状态</th><th>代码</th><th>名称</th>
+            <th>排名</th><th>代码</th><th>名称</th>
             <th class="num">最新价</th><th class="num">今日涨跌幅</th>
-            <th class="num">连续天数</th><th>行业</th>
+            <th class="num">近5日涨幅</th><th class="num">近20日波动率</th>
+            <th class="num">近5日上涨天数</th><th class="num">量能倍数</th>
+            <th>行业</th><th class="num">得分</th>
           </tr>
         </thead>
-        <tbody id="strict-body"></tbody>
+        <tbody id="strong-body"></tbody>
       </table>
     </div>
   </section>
 
   <section class="section">
     <div class="section-head">
-      <h3 class="section-title">预警 · 评分优选TOP40</h3>
-      <span class="section-meta" id="loose-meta">—</span>
+      <h3 class="section-title">预警</h3>
+      <span class="section-meta" id="normal-meta">—</span>
     </div>
     <div class="table-wrap">
-      <table class="tbl" id="loose-table">
+      <table class="tbl" id="normal-table">
         <thead>
           <tr>
             <th>排名</th><th>代码</th><th>名称</th>
-            <th class="num">最新价</th><th class="num">3日累计涨幅</th>
+            <th class="num">最新价</th><th class="num">今日涨跌幅</th>
+            <th class="num">近5日涨幅</th><th class="num">近20日波动率</th>
+            <th class="num">近5日上涨天数</th><th class="num">量能倍数</th>
             <th>行业</th><th class="num">得分</th>
           </tr>
         </thead>
-        <tbody id="loose-body"></tbody>
+        <tbody id="normal-body"></tbody>
       </table>
     </div>
   </section>
@@ -71,39 +75,32 @@
 
 <script src="./terminal.js"></script>
 <script>
-function n_(o, keys, d) {
-  if (!o) return d === undefined ? null : d;
+function n_(o, keys) {
+  if (!o) return null;
   for (const k of keys) {
     const v = o[k];
     if (typeof v === "number" && isFinite(v)) return v;
   }
-  return d === undefined ? null : d;
+  return null;
 }
 
-function strictRow(s) {
-  const status = s["状态"] || "";
-  const cls = status.includes("已确认") ? "tag-warn" : "tag-muted";
-  const chg = n_(s,["今日涨跌幅"]);
-  return `<tr>
-    <td><span class="tag ${cls}">${esc(status)}</span></td>
-    <td class="num">${esc(String(s["代码"]||""))}</td>
-    <td>${esc(String(s["名称"]||""))}</td>
-    <td class="num">${fmt.num(n_(s,["最新价"]),2)}</td>
-    <td class="num ${fmt.dirClass(chg)}">${fmt.num(chg,2)}%</td>
-    <td class="num">${s["连续达标天数"]}</td>
-    <td>${esc(String(s["行业"]||"未分类"))}</td>
-  </tr>`;
-}
-
-function looseRow(s, rank) {
+function row(s, rank) {
+  const chg = n_(s, ["今日涨跌幅"]);
+  const ret5 = n_(s, ["近5日涨幅"]);
+  const vol20 = n_(s, ["近20日波动率"]);
+  const updays = s["近5日上涨天数"];
+  const vspike = n_(s, ["量能倍数"]);
   const score = n_(s, ["综合得分"]);
-  const cum = n_(s, ["3日累计涨幅"]);
   return `<tr>
     <td class="num">${rank}</td>
     <td class="num">${esc(String(s["代码"]||""))}</td>
     <td>${esc(String(s["名称"]||""))}</td>
     <td class="num">${fmt.num(n_(s,["最新价"]),2)}</td>
-    <td class="num ${fmt.dirClass(cum)}">${fmt.num(cum,2)}%</td>
+    <td class="num ${fmt.dirClass(chg)}">${fmt.num(chg,2)}%</td>
+    <td class="num ${fmt.dirClass(ret5)}">${ret5!==null?fmt.num(ret5,2)+"%":"—"}</td>
+    <td class="num">${vol20!==null?fmt.num(vol20,2)+"%":"—"}</td>
+    <td class="num">${updays!==null&&updays!==undefined?updays:"—"}</td>
+    <td class="num">${vspike!==null?fmt.num(vspike,2):"—"}</td>
     <td>${esc(String(s["行业"]||"未分类"))}</td>
     <td class="num">${score!==null?fmt.num(score,1):"—"}</td>
   </tr>`;
@@ -114,48 +111,35 @@ function looseRow(s, rank) {
   stampLastRun();
 
   const data = await loadJson("dual.json");
-  const strict = (data && data.strict_5pct_watch) || {};
-  const loose = (data && data.loose_cumulative_watch) || {};
-  const sList = strict.watch || [];
-  const lList = loose.watch || [];
+  const F = (data && data.precursor_factor_watch) || {};
+  const all = F.watch || [];
+  const strong = all.filter(s => s["档位"] === "强预警")
+    .sort((a,b) => (n_(b,["综合得分"])??-1) - (n_(a,["综合得分"])??-1));
+  const normal = all.filter(s => s["档位"] !== "强预警")
+    .sort((a,b) => (n_(b,["综合得分"])??-1) - (n_(a,["综合得分"])??-1));
 
   panel("概览", () => {
     document.getElementById("overview").innerHTML = `
       <div class="card"><h3 class="card-title">强预警</h3>
-        <div class="big-num">${sList.length}<span class="unit"> 只</span></div>
-        <div class="kv-list">
-          <div class="kv-row"><span class="kv-key">已确认(3日)</span>
-            <span class="kv-val num">${strict.meta?.confirmed_count ?? "—"}</span></div>
-          <div class="kv-row"><span class="kv-key">观察(2日)</span>
-            <span class="kv-val num">${strict.meta?.watching_count ?? "—"}</span></div>
-        </div>
+        <div class="big-num">${strong.length}<span class="unit"> 只</span></div>
       </div>
       <div class="card"><h3 class="card-title">预警</h3>
-        <div class="big-num">${lList.length}<span class="unit"> 只</span></div>
-        <div class="kv-list">
-          <div class="kv-row"><span class="kv-key">目标</span>
-            <span class="kv-val num">${loose.meta?.target_count ?? "—"}</span></div>
-        </div>
+        <div class="big-num">${normal.length}<span class="unit"> 只</span></div>
       </div>`;
   });
 
   panel("强预警列表", () => {
-    const sorted = sList.slice().sort((a,b) => {
-      const c = (b["连续达标天数"]||0) - (a["连续达标天数"]||0);
-      return c;
-    });
-    document.getElementById("strict-meta").textContent = sorted.length ? `${sorted.length} 只` : "无";
-    document.getElementById("strict-body").innerHTML = sorted.length
-      ? sorted.map(strictRow).join("")
-      : `<tr><td colspan="7">${emptyState("当前无标的", "")}</td></tr>`;
+    document.getElementById("strong-meta").textContent = strong.length ? `${strong.length} 只 · ${(data&&data.update_date)||""}` : "无";
+    document.getElementById("strong-body").innerHTML = strong.length
+      ? strong.map((s,i) => row(s,i+1)).join("")
+      : `<tr><td colspan="11">${emptyState("当前无标的", "")}</td></tr>`;
   });
 
   panel("预警列表", () => {
-    const sorted = lList.slice().sort((a,b) => (n_(b,["综合得分"])??-1) - (n_(a,["综合得分"])??-1));
-    document.getElementById("loose-meta").textContent = sorted.length ? `${sorted.length} 只` : "无";
-    document.getElementById("loose-body").innerHTML = sorted.length
-      ? sorted.map((s,i) => looseRow(s,i+1)).join("")
-      : `<tr><td colspan="7">${emptyState("当前无标的", "")}</td></tr>`;
+    document.getElementById("normal-meta").textContent = normal.length ? `${normal.length} 只` : "无";
+    document.getElementById("normal-body").innerHTML = normal.length
+      ? normal.map((s,i) => row(s,i+1)).join("")
+      : `<tr><td colspan="11">${emptyState("当前无标的", "")}</td></tr>`;
   });
 })();
 </script>
@@ -163,19 +147,10 @@ function looseRow(s, rank) {
 <style>
 .big-num { font-size:1.9rem; font-variant-numeric:tabular-nums; line-height:1.15; }
 .big-num .unit { font-size:.85rem; opacity:.6; margin-left:3px; }
-.card.mini { padding:12px 14px; margin-bottom:10px; }
-.rank-badge { display:inline-block; min-width:1.4em; text-align:center;
-  font-variant-numeric:tabular-nums; opacity:.55; margin-right:4px; }
-.stock-head { display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:8px; }
-.stock-code { font-variant-numeric:tabular-nums; font-weight:600; }
-.stock-name { margin-left:6px; opacity:.8; }
-.kv-row { display:flex; justify-content:space-between; gap:10px; padding:2px 0; align-items:baseline; }
-.kv-key { opacity:.7; flex-shrink:0; font-size:.9em; }
-.kv-val.num { font-variant-numeric:tabular-nums; }
-.kv-val.up { color:var(--up,#b4483c); }
-.kv-val.down { color:var(--down,#3d7a5a); }
-.table-wrap { overflow-x:auto; }
+.table-wrap { overflow-x:auto; margin-bottom:24px; }
 .tbl td.num, .tbl th.num { text-align:right; font-variant-numeric:tabular-nums; }
+.tbl td.up { color:var(--up,#b4483c); }
+.tbl td.down { color:var(--down,#3d7a5a); }
 </style>
 </body>
 </html>
