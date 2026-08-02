@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="color-scheme" content="light dark" />
-<title>启动前预警 · Trading Decision Terminal</title>
+<title>涨幅预警 · Trading Decision Terminal</title>
 <link rel="stylesheet" href="./terminal.css" />
 </head>
 <body>
@@ -23,14 +23,14 @@
 
 <main>
   <div class="page-head">
-    <h2 class="page-title">启动前预警</h2>
+    <h2 class="page-title">涨幅预警</h2>
   </div>
 
   <section class="grid cols-2" id="overview"></section>
 
   <section class="section">
     <div class="section-head">
-      <h3 class="section-title">严格版 · 连日≥5%</h3>
+      <h3 class="section-title">强预警 · 连日≥5%</h3>
       <span class="section-meta" id="strict-meta">—</span>
     </div>
     <div id="strict-list"></div>
@@ -38,7 +38,7 @@
 
   <section class="section">
     <div class="section-head">
-      <h3 class="section-title">宽松版 · 3日累计≥10%</h3>
+      <h3 class="section-title">预警 · 评分优选TOP40</h3>
       <span class="section-meta" id="loose-meta">—</span>
     </div>
     <div id="loose-list"></div>
@@ -82,14 +82,14 @@ function strictCard(s) {
   </div>`;
 }
 
-function looseCard(s) {
-  const tier = s["档位"] || "";
-  const cls = tier.includes("强") ? "tag-warn" : "tag-muted";
+function looseCard(s, rank) {
+  const score = n_(s, ["综合得分"]);
   return `<div class="card mini">
     <div class="stock-head">
-      <div><span class="stock-code">${esc(String(s["代码"]||""))}</span>
+      <div><span class="rank-badge">${rank}</span>
+        <span class="stock-code">${esc(String(s["代码"]||""))}</span>
         <span class="stock-name">${esc(String(s["名称"]||""))}</span></div>
-      <span class="tag ${cls}">${esc(tier)}</span>
+      <span class="tag tag-muted">${score!==null?fmt.num(score,1)+" 分":"—"}</span>
     </div>
     <div class="kv-list">
       <div class="kv-row"><span class="kv-key">最新价</span>
@@ -116,7 +116,7 @@ function looseCard(s) {
 
   panel("概览", () => {
     document.getElementById("overview").innerHTML = `
-      <div class="card"><h3 class="card-title">严格版</h3>
+      <div class="card"><h3 class="card-title">强预警</h3>
         <div class="big-num">${sList.length}<span class="unit"> 只</span></div>
         <div class="kv-list">
           <div class="kv-row"><span class="kv-key">已确认(3日)</span>
@@ -125,28 +125,26 @@ function looseCard(s) {
             <span class="kv-val num">${strict.meta?.watching_count ?? "—"}</span></div>
         </div>
       </div>
-      <div class="card"><h3 class="card-title">宽松版</h3>
+      <div class="card"><h3 class="card-title">预警</h3>
         <div class="big-num">${lList.length}<span class="unit"> 只</span></div>
         <div class="kv-list">
-          <div class="kv-row"><span class="kv-key">15%+</span>
-            <span class="kv-val num">${loose.meta?.tier15_count ?? "—"}</span></div>
-          <div class="kv-row"><span class="kv-key">10%+</span>
-            <span class="kv-val num">${loose.meta?.tier10_count ?? "—"}</span></div>
+          <div class="kv-row"><span class="kv-key">目标</span>
+            <span class="kv-val num">${loose.meta?.target_count ?? "—"}</span></div>
         </div>
       </div>`;
   });
 
-  panel("严格版列表", () => {
+  panel("强预警列表", () => {
     document.getElementById("strict-meta").textContent = sList.length ? `${sList.length} 只` : "无";
     document.getElementById("strict-list").innerHTML = sList.length
       ? `<div class="grid cols-3">${sList.map(strictCard).join("")}</div>`
       : emptyState("当前无标的", "");
   });
 
-  panel("宽松版列表", () => {
+  panel("预警列表", () => {
     document.getElementById("loose-meta").textContent = lList.length ? `${lList.length} 只` : "无";
     document.getElementById("loose-list").innerHTML = lList.length
-      ? `<div class="grid cols-3">${lList.map(looseCard).join("")}</div>`
+      ? `<div class="grid cols-3">${lList.map((s,i)=>looseCard(s,i+1)).join("")}</div>`
       : emptyState("当前无标的", "");
   });
 })();
@@ -156,6 +154,8 @@ function looseCard(s) {
 .big-num { font-size:1.9rem; font-variant-numeric:tabular-nums; line-height:1.15; }
 .big-num .unit { font-size:.85rem; opacity:.6; margin-left:3px; }
 .card.mini { padding:12px 14px; margin-bottom:10px; }
+.rank-badge { display:inline-block; min-width:1.4em; text-align:center;
+  font-variant-numeric:tabular-nums; opacity:.55; margin-right:4px; }
 .stock-head { display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:8px; }
 .stock-code { font-variant-numeric:tabular-nums; font-weight:600; }
 .stock-name { margin-left:6px; opacity:.8; }
